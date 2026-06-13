@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -24,6 +25,9 @@ public class TurnManager : MonoBehaviour
     [SerializeField] int kazananOyuncuID = -1;
 
     readonly List<Player> oyuncular = new List<Player>();
+
+    // UI'in dinleyebilecegi olay: oyuncu zehir suresi dolunca oldu
+    public static event Action<Player> OnPlayerDiedFromPoisonTimer;
 
     public int AktifOyuncuIndeksi => aktifOyuncuIndeksi;
     public TurnDirection TurYonu => turYonu;
@@ -222,10 +226,43 @@ public class TurnManager : MonoBehaviour
 
     #region Poisoned Timer
 
-    public void ApplyPoisonToPlayer(int playerID, int turnsToSurvive = VarsayilanZehirlenmeSuresi)
+    public void ApplyPoisonToPlayer(int playerID, int turnsToSurvive = -1)
     {
         Player oyuncu = GetPlayer(playerID);
-        oyuncu?.ApplyPoison(turnsToSurvive);
+        if (oyuncu == null) return;
+
+        int sure = turnsToSurvive >= 0 ? turnsToSurvive : oyuncu.GetPoisonSurvivalTurns();
+        oyuncu.ApplyPoison(sure);
+    }
+
+    public void ResolveCupEffect(int playerID, CupType cupType)
+    {
+        Player oyuncu = GetPlayer(playerID);
+        if (oyuncu == null || !oyuncu.IsAlive)
+            return;
+
+        switch (cupType)
+        {
+            case CupType.POISON:
+                oyuncu.ApplyPoison(oyuncu.GetPoisonSurvivalTurns());
+                break;
+
+            case CupType.ANTIDOTE:
+                oyuncu.CurePoison();
+                break;
+        }
+    }
+
+    public void AssignCharacter(int playerID, CharacterType type)
+    {
+        Player oyuncu = GetPlayer(playerID);
+        if (oyuncu == null)
+            return;
+
+        oyuncu.characterType = type;
+
+        if (type == CharacterType.Survivor)
+            oyuncu.skipHakki = 2;
     }
 
     /// <summary>
@@ -275,7 +312,43 @@ public class TurnManager : MonoBehaviour
 
     public void OnPoisonedTimerExpired(int playerID)
     {
+        Player oyuncu = GetPlayer(playerID);
         Debug.Log($"[TurnManager] Oyuncu {playerID} panzehir bulamadan öldü.");
+        OnPlayerDiedFromPoisonTimer?.Invoke(oyuncu);
+    }
+
+    #endregion
+
+    #region Dedektif Pasif Yetenek (UI Erisimi)
+
+    MasaYonetici _cachedMasaYonetici;
+
+    MasaYonetici GetMasaYonetici()
+    {
+        if (_cachedMasaYonetici == null)
+            _cachedMasaYonetici = FindAnyObjectByType<MasaYonetici>();
+
+        return _cachedMasaYonetici;
+    }
+
+    /// <summary>
+    /// Masada anlik olarak kalan (icilmemis) toplam zehirli bardak sayisi.
+    /// Dedektif pasif yetenegi icin UI'in erisebilecegi metot.
+    /// </summary>
+    public int GetRemainingPoisonCount()
+    {
+        var masa = GetMasaYonetici();
+        return masa != null ? masa.CountUnconsumedByType(CupType.POISON) : 0;
+    }
+
+    /// <summary>
+    /// Masada anlik olarak kalan (icilmemis) toplam panzehirli bardak sayisi.
+    /// Dedektif pasif yetenegi icin UI'in erisebilecegi metot.
+    /// </summary>
+    public int GetRemainingAntidoteCount()
+    {
+        var masa = GetMasaYonetici();
+        return masa != null ? masa.CountUnconsumedByType(CupType.ANTIDOTE) : 0;
     }
 
     #endregion
@@ -326,6 +399,11 @@ public class TurnManager : MonoBehaviour
         }
 
         return count;
+    }
+
+    public int GetTotalPlayerCount()
+    {
+        return oyuncular.Count;
     }
 
     public void EndGame(int winnerPlayerID)

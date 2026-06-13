@@ -9,7 +9,8 @@ public class Cup
 {
     public CupType cupType;
     public bool isConsumed;
-    public int ownerID;
+    public int ownerID;       // Bardagi zehirleyen/olusturan kisinin ID'si
+    public int consumedByID; // Bardagi icen kisinin ID'si (-1 = icilmemis)
     public bool isRevealed;
 
     public Cup()
@@ -17,6 +18,7 @@ public class Cup
         cupType = CupType.EMPTY;
         isConsumed = false;
         ownerID = -1;
+        consumedByID = -1;
         isRevealed = false;
     }
 }

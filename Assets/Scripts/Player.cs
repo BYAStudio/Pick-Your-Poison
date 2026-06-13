@@ -8,10 +8,21 @@ public enum PlayerState
 public class Player
 {
     public const int VarsayilanZehirlenmeSuresi = 3;
+    public const int DoctorZehirlenmeSuresi = 4;
 
     public int playerID;
     public PlayerState currentState;
     public int poisonedTimer;
+    public CharacterType characterType;
+
+    // Survivor: oyun boyunca 2 kez tur atlayabilir
+    public int skipHakki;
+
+    // Chemist: oyun boyunca 1 kez 1 zehir + 1 panzehir konumunu ogrenebilir
+    public bool chemistAbilityUsed;
+
+    // Detective: oyun boyunca 1 kez istedigi bardagin icine bakabilir
+    public bool detectiveAbilityUsed;
 
     public bool IsAlive => currentState != PlayerState.Dead;
 
@@ -20,6 +31,15 @@ public class Player
         playerID = id;
         currentState = PlayerState.Healthy;
         poisonedTimer = 0;
+        characterType = CharacterType.None;
+        skipHakki = 0;
+        chemistAbilityUsed = false;
+        detectiveAbilityUsed = false;
+    }
+
+    public int GetPoisonSurvivalTurns()
+    {
+        return characterType == CharacterType.Doctor ? DoctorZehirlenmeSuresi : VarsayilanZehirlenmeSuresi;
     }
 
     /// <summary>
