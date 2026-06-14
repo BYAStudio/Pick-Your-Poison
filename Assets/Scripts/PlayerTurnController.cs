@@ -37,11 +37,7 @@ public class PlayerTurnController : MonoBehaviour
         turAktif = true;
         kartSecimiBekleniyor = false;
 
-        Player aktif = turnManager?.GetActivePlayer();
-        if (aktif != null && aktif.IsAlive)
-        {
-            Debug.Log($"[PlayerTurnController] Oyuncu {aktif.playerID}'nin turu basladi.");
-        }
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnStart);
     }
 
     public void TuruSonlandir()
@@ -49,10 +45,21 @@ public class PlayerTurnController : MonoBehaviour
         if (!turAktif) return;
         turAktif = false;
 
+        // Ölü oyuncunun turu "EndTurn" ile sonlandirilmamali.
+        // Ölüm durumunda CheckGameEnd zaten ResolveCupEffect / ApplyPoisonToPlayer
+        // tarafindan tetiklenir.
         if (turnManager != null && !turnManager.IsGameOver())
         {
-            turnManager.EndTurn();
+            Player aktif = turnManager.GetActivePlayer();
+            if (aktif != null && aktif.IsAlive)
+            {
+                turnManager.EndTurn();
+            }
         }
+
+        // Oyun bitmediyse sadece tur sonlandirma sesi çal
+        if (turnManager == null || !turnManager.IsGameOver())
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnEnd);
     }
 
     #endregion
@@ -92,12 +99,18 @@ public class PlayerTurnController : MonoBehaviour
         CupType icerik = masaYonetici.ConsumeCupForPlayer(bardakIndeksi, aktifOyuncu.playerID);
         turnManager.ResolveCupEffect(aktifOyuncu.playerID, icerik);
 
-        Debug.Log($"[PlayerTurnController] Oyuncu {aktifOyuncu.playerID}, bardak {bardakIndeksi} icti: {icerik}");
+        // Bardak icerken ses
+        if (icerik == CupType.POISON)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+        else if (icerik == CupType.ANTIDOTE)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+        else
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
 
-        // Eger oyuncu olduyse olumu kaydet ve turu bitir
+        // ResolveCupEffect icinde olum kaydi ve event firlatilir
         if (!aktifOyuncu.IsAlive)
         {
-            turnManager.RegisterPlayerDeath(aktifOyuncu.playerID);
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
             TuruSonlandir();
             return;
         }
@@ -106,11 +119,6 @@ public class PlayerTurnController : MonoBehaviour
         TuruSonlandir();
     }
 
-    /// <summary>
-    /// Aktif oyuncu kart ceker ve etkisini uygular.
-    /// Negatif kartlar (Acgozluluk Cezasi, Kritik Doz) zorla bardak icmeye/zehirlenmeye yol acar.
-    /// Diger kartlarda sira guvenle savulur.
-    /// </summary>
     /// <summary>
     /// Aktif oyuncu kart ceker. Eger kart secim gerektiriyorsa (Acgozluluk, Zoraki Ikram, Tarama)
     /// oyuncuyu "Secim Bekleme" moduna sokar. Diger kartlarda direkt uygular ve turu bitirir.
@@ -124,38 +132,33 @@ public class PlayerTurnController : MonoBehaviour
         if (aktifOyuncu == null || !aktifOyuncu.IsAlive) return;
 
         CardType cekilenKart = cardManager.CekKart();
-        Debug.Log($"[PlayerTurnController] Oyuncu {aktifOyuncu.playerID} kart cekti: {cekilenKart}");
 
         // Hedef/Secim GEREKTIREN kartlar
-        if (cekilenKart == CardType.AcgozlulukCezasi || 
-            cekilenKart == CardType.ZehirTarama || 
-            cekilenKart == CardType.PanzehirTarama || 
+        if (cekilenKart == CardType.AcgozlulukCezasi ||
+            cekilenKart == CardType.ZehirTarama ||
+            cekilenKart == CardType.PanzehirTarama ||
             cekilenKart == CardType.ZorakiIkram)
         {
             if (secimGerektirenKartlariOtomatikCoz)
             {
-                Debug.Log($"[PlayerTurnController] {cekilenKart} cekildi. Gecerli hedefler otomatik secilerek cozuluyor.");
                 BekleyenKartIcinOtomatikSecimYap(cekilenKart, aktifOyuncu.playerID);
             }
             else
             {
                 kartSecimiBekleniyor = true;
                 bekleyenKart = cekilenKart;
-                Debug.Log($"[PlayerTurnController] {cekilenKart} cekildi. UI'dan secim bekleniyor...");
             }
         }
         else // Secim GEREKTIRMEYEN direkt kartlar (Kritik Doz, Girdap, Nefeslenme)
         {
             cardManager.UygulaKartEtkisi(cekilenKart, aktifOyuncu.playerID);
-            
-            if (!aktifOyuncu.IsAlive) turnManager.RegisterPlayerDeath(aktifOyuncu.playerID);
-            
+            // ApplyPoisonToPlayer / ResolveCupEffect icinde olum kaydi yapilir
             TuruSonlandir();
         }
     }
 
     /// <summary>
-    /// UI tarafindan cagirilir. Acgozluluk, Tarama veya Zoraki Ikram gibi kartlar icin 
+    /// UI tarafindan cagirilir. Acgozluluk, Tarama veya Zoraki Ikram gibi kartlar icin
     /// oyuncu secimlerini yaptiginda bu metot tetiklenir ve bekleyen kart uygulanir.
     /// </summary>
     public void BekleyenKartIcinHedefSecildi(int secilenAlan = 0, int bardak1 = -1, int bardak2 = -1, int hedefOyuncu = -1)
@@ -167,16 +170,12 @@ public class PlayerTurnController : MonoBehaviour
         }
 
         Player aktifOyuncu = turnManager.GetActivePlayer();
-        
-        // Bekleyen karti CardManager'a gonder ve uygula
+
         cardManager.UygulaKartEtkisi(bekleyenKart, aktifOyuncu.playerID, secilenAlan, bardak1, bardak2, hedefOyuncu);
 
-        // Islemler bittigine gore state'i sifirla
         kartSecimiBekleniyor = false;
         bekleyenKart = default;
-
-        if (!aktifOyuncu.IsAlive) turnManager.RegisterPlayerDeath(aktifOyuncu.playerID);
-
+        // Olum kaydi CardManager icerisinde yapilir
         TuruSonlandir();
     }
 
@@ -205,7 +204,6 @@ public class PlayerTurnController : MonoBehaviour
         if (aktifOyuncu.characterType == CharacterType.Survivor && aktifOyuncu.skipHakki > 0)
         {
             aktifOyuncu.skipHakki--;
-            Debug.Log($"[PlayerTurnController] Survivor Oyuncu {aktifOyuncu.playerID} tur atladi. Kalan hak: {aktifOyuncu.skipHakki}");
             TuruSonlandir();
             return true;
         }
@@ -228,14 +226,12 @@ public class PlayerTurnController : MonoBehaviour
         Player aktifOyuncu = turnManager.GetActivePlayer();
         if (aktifOyuncu == null || !aktifOyuncu.IsAlive) return false;
 
-        // Karakter kontrolu
         if (aktifOyuncu.characterType != CharacterType.Chemist)
         {
             Debug.LogWarning("[PlayerTurnController] Aktif oyuncu Kimyager degil.");
             return false;
         }
 
-        // Hak kontrolu
         if (aktifOyuncu.chemistAbilityUsed)
         {
             Debug.LogWarning("[PlayerTurnController] Kimyager yetenegi zaten kullanilmis.");
@@ -244,14 +240,10 @@ public class PlayerTurnController : MonoBehaviour
 
         if (masaYonetici == null) return false;
 
-        // MasaYonetici uzerinden indeksleri cek (sadece icilmemis bardaklar)
         zehirIndeksi = masaYonetici.FindRandomCupIndexOfType(CupType.POISON, unconsumedOnly: true);
         panzehirIndeksi = masaYonetici.FindRandomCupIndexOfType(CupType.ANTIDOTE, unconsumedOnly: true);
 
-        // Hakki dusur ve flag'i isaretle
         aktifOyuncu.chemistAbilityUsed = true;
-        
-        Debug.Log($"[PlayerTurnController] Kimyager yetenegi kullanildi. Zehir: {zehirIndeksi}, Panzehir: {panzehirIndeksi}");
         return true;
     }
 
@@ -268,14 +260,12 @@ public class PlayerTurnController : MonoBehaviour
         Player aktifOyuncu = turnManager.GetActivePlayer();
         if (aktifOyuncu == null || !aktifOyuncu.IsAlive) return false;
 
-        // Karakter kontrolu
         if (aktifOyuncu.characterType != CharacterType.Detective)
         {
             Debug.LogWarning("[PlayerTurnController] Aktif oyuncu Dedektif degil.");
             return false;
         }
 
-        // Hak kontrolu
         if (aktifOyuncu.detectiveAbilityUsed)
         {
             Debug.LogWarning("[PlayerTurnController] Dedektif yetenegi zaten kullanilmis.");
@@ -284,13 +274,8 @@ public class PlayerTurnController : MonoBehaviour
 
         if (masaYonetici == null) return false;
 
-        // Bardagin tipini ogren
         bardakTipi = masaYonetici.GetCupType(bardakIndeksi);
-
-        // Hakki dusur ve flag'i isaretle
         aktifOyuncu.detectiveAbilityUsed = true;
-
-        Debug.Log($"[PlayerTurnController] Dedektif yetenegi kullanildi. Bardak {bardakIndeksi} icerigi: {bardakTipi}");
         return true;
     }
 
@@ -345,10 +330,7 @@ public class PlayerTurnController : MonoBehaviour
 
         cardManager.UygulaKartEtkisi(kart, aktifOyuncuID, secilenAlan, bardak1, bardak2, hedefOyuncu);
 
-        Player aktifOyuncu = turnManager.GetPlayer(aktifOyuncuID);
-        if (aktifOyuncu != null && !aktifOyuncu.IsAlive)
-            turnManager.RegisterPlayerDeath(aktifOyuncu.playerID);
-
+        // Olum kaydi CardManager icerisinde yapilir
         TuruSonlandir();
     }
 

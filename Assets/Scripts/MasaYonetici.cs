@@ -110,6 +110,21 @@ public class MasaYonetici : MonoBehaviour
         return count;
     }
 
+    public int CountUnconsumedTotal()
+    {
+        int count = 0;
+
+        for (int i = 0; i < bardaklar.Count; i++)
+        {
+            if (!bardaklar[i].isConsumed)
+                count++;
+        }
+
+        return count;
+    }
+
+    public bool AreAllCupsConsumed() => CountUnconsumedTotal() == 0;
+
     #endregion
 
     #region Durum Guncelleme

@@ -41,6 +41,9 @@ public class CardManager : MonoBehaviour
         int rng = Random.Range(0, 100);
         SonRNGDegeri = rng;
         SonCekilenKart = RNGToCardType(rng);
+
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.CardDraw);
+
         return SonCekilenKart;
     }
 
@@ -64,7 +67,6 @@ public class CardManager : MonoBehaviour
         switch (kart)
         {
             case CardType.AcgozlulukCezasi:
-                // Artik rastgele degil, disaridan gelen 2 bardak indeksini gonderiyoruz
                 EtkiAcgozlulukCezasi(aktifOyuncuID, secilenBardak1, secilenBardak2);
                 break;
             case CardType.KritikDoz:
@@ -83,17 +85,13 @@ public class CardManager : MonoBehaviour
                 EtkiNefeslenme();
                 break;
             case CardType.ZorakiIkram:
-                // Gelen hedef oyuncu ID'sini ve secilen ilk bardagi (secilenBardak1) kullaniyoruz
-                EtkiZorakiIkram(aktifOyuncuID, hedefOyuncuID, secilenBardak1); 
+                EtkiZorakiIkram(aktifOyuncuID, hedefOyuncuID, secilenBardak1);
                 break;
         }
     }
 
     void EtkiAcgozlulukCezasi(int aktifOyuncuID, int bardak1, int bardak2)
     {
-        Debug.Log($"[CardManager] Acgozluluk Cezasi: Oyuncu {aktifOyuncuID} kendi sectigi bardaklari ({bardak1}, {bardak2}) iciyor.");
-
-        // Secilen bardaklari bir diziye alalim ki kolayca donelim
         int[] secilenler = { bardak1, bardak2 };
         var icilenler = new HashSet<int>();
 
@@ -101,7 +99,6 @@ public class CardManager : MonoBehaviour
         {
             int bardak = secilenler[i];
 
-            // Gecersiz, icilmis veya tekrar secilen bardak geldiyse kalan bardaklardan yeni bir tane bul.
             if (bardak < 0 || masaYonetici.IsConsumed(bardak) || icilenler.Contains(bardak))
             {
                 int yedekBardak = masaYonetici.GetRandomUnconsumedCupIndexExcluding(icilenler);
@@ -119,12 +116,19 @@ public class CardManager : MonoBehaviour
             icilenler.Add(bardak);
             turnManager.ResolveCupEffect(aktifOyuncuID, tip);
 
-            Debug.Log($"[CardManager]  ({i + 1}/2) Bardak {bardak} icildi: {tip}");
+            // Bardak icerken ses
+            if (tip == CupType.POISON)
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+            else if (tip == CupType.ANTIDOTE)
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+            else
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
 
             // Eger ilk bardakta zehirlenip olmusse, ikinci bardagi icmesine gerek yok!
+            // Olum kaydi ResolveCupEffect icinde yapilir
             if (!turnManager.IsPlayerAlive(aktifOyuncuID))
             {
-                Debug.Log($"[CardManager] Oyuncu ilk bardakta ({bardak}) oldugu icin ikinci bardagi icemiyor.");
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
                 break;
             }
         }
@@ -132,50 +136,53 @@ public class CardManager : MonoBehaviour
 
     void EtkiKritikDoz(int aktifOyuncuID)
     {
-        Debug.Log($"[CardManager] Kritik Doz: Oyuncu {aktifOyuncuID} direkt zehirlendi.");
         turnManager.ApplyPoisonToPlayer(aktifOyuncuID);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+
+        // Oyuncu olduyse olum sesi
+        if (!turnManager.IsPlayerAlive(aktifOyuncuID))
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
     }
 
     void EtkiZehirTarama(int topLeftIndex)
     {
-        // Gelen indeks gecerli degilse guvenlik amaciyla 0 yap
         if (!masaYonetici.IsValid2x2TopLeft(topLeftIndex))
         {
             Debug.LogWarning($"[CardManager] Gecersiz 2x2 alan baslangici: {topLeftIndex}. Guvenlik icin 0 atandi.");
             topLeftIndex = 0;
         }
 
-        int zehirSayisi = masaYonetici.Count2x2Area(topLeftIndex, CupType.POISON, unconsumedOnly: true);
-        Debug.Log($"[CardManager] Zehir Tarama (2x2 baslangic {topLeftIndex}): {zehirSayisi} zehirli bardak. HERKES GORDU.");
+        masaYonetici.Count2x2Area(topLeftIndex, CupType.POISON, unconsumedOnly: true);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ScanReveal);
+        // Sonuc UI'a aktarilir (tum oyunculara gosterilir)
     }
 
     void EtkiPanzehirTarama(int aktifOyuncuID, int topLeftIndex)
     {
-        // Gelen indeks gecerli degilse guvenlik amaciyla 0 yap
         if (!masaYonetici.IsValid2x2TopLeft(topLeftIndex))
         {
             Debug.LogWarning($"[CardManager] Gecersiz 2x2 alan baslangici: {topLeftIndex}. Guvenlik icin 0 atandi.");
             topLeftIndex = 0;
         }
 
-        int panzehirSayisi = masaYonetici.Count2x2Area(topLeftIndex, CupType.ANTIDOTE, unconsumedOnly: true);
-        Debug.Log($"[CardManager] Panzehir Tarama (2x2 baslangic {topLeftIndex}): {panzehirSayisi} panzehir. SADECE Oyuncu {aktifOyuncuID} GORDU.");
+        masaYonetici.Count2x2Area(topLeftIndex, CupType.ANTIDOTE, unconsumedOnly: true);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ScanReveal);
+        // Sonuc sadece aktif oyuncuya gosterilir
     }
 
     void EtkiGirdap()
     {
-        Debug.Log("[CardManager] Girdap: Tur yonu degisti.");
         turnManager.ReverseTurnDirection();
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.DirectionReverse);
     }
 
     void EtkiNefeslenme()
     {
-        Debug.Log("[CardManager] Nefeslenme: Tur guvenle savuldu.");
+        // Tur guvenle savulur, ekstra islem gerekmez
     }
 
     void EtkiZorakiIkram(int aktifOyuncuID, int hedefOyuncuID, int secilenBardak)
     {
-        // 1. Guvenlik Kontrolleri
         if (hedefOyuncuID < 0 || secilenBardak < 0)
         {
             Debug.LogWarning("[CardManager] Zoraki Ikram iptal: Hedef oyuncu veya bardak secilmedi.");
@@ -194,17 +201,25 @@ public class CardManager : MonoBehaviour
             return;
         }
 
-        // 2. Efekti Uygula
         CupType tip = masaYonetici.ConsumeCupForPlayer(secilenBardak, hedefOyuncuID);
         turnManager.ResolveCupEffect(hedefOyuncuID, tip);
-        
-        Debug.Log($"[CardManager] Zoraki Ikram: Oyuncu {aktifOyuncuID}, Oyuncu {hedefOyuncuID}'ya bardak {secilenBardak} icirdi! Cikan sonuc: {tip}");
+
+        // Bardak icerken ses
+        if (tip == CupType.POISON)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+        else if (tip == CupType.ANTIDOTE)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+        else
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
+
+        // Olum sesi
+        if (!turnManager.IsPlayerAlive(hedefOyuncuID))
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
     }
 
     #endregion
 
     #region Yardimci
-
 
     void ResolveReferences()
     {

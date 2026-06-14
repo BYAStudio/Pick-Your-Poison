@@ -370,7 +370,7 @@ public class DebugPanel : MonoBehaviour
     {
         CollectCupData();
 
-        GUI.Box(new Rect(12, 12, 480, 480), "Faz 2 Debug Panel");
+        GUI.Box(new Rect(12, 12, 480, 480), "Debug Panel");
 
         GUILayout.BeginArea(new Rect(24, 42, 456, 442));
         GUILayout.Label("Kontroller");

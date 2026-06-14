@@ -63,18 +63,16 @@ public class GameSetupManager : MonoBehaviour
         masaYonetici.ResetTable();
         turnManager.StartGame(oyuncuSayisi);
 
-        // 1. Sistem rastgele 6 panzehir yerlestirir (cakisma yok, sadece boslara)
-        int yerlestirilenPanzehir = masaYonetici.PlaceRandomAntidotes(baslangicPanzehirSayisi);
-        Debug.Log($"[Setup] {yerlestirilenPanzehir} panzehir rastgele yerlestirildi.");
+        // 1. Sistem rastgele 6 panzehir yerlestirir
+        masaYonetici.PlaceRandomAntidotes(baslangicPanzehirSayisi);
 
         // 2. Ilk oyuncu zehir koymaya baslar
-        Debug.Log($"[Setup] Oyuncu {mevcutZehirKoyanOyuncuIndeksi} zehir koyuyor. Kalan: {KalanZehirSayisi}");
         OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
     }
 
     /// <summary>
     /// Mevcut setup sirasindaki oyuncu bir bardaga zehir koyar.
-    /// Cakisma olursa Hafiza Tuzagi sistemi otomatik calisir (MasaYonetici icerisinde)...
+    /// Cakisma olursa Hafiza Tuzagi sistemi otomatik calisir (MasaYonetici icerisinde).
     /// </summary>
     public bool OyuncuZehirKoy(int bardakIndeksi)
     {
@@ -94,8 +92,6 @@ public class GameSetupManager : MonoBehaviour
         mevcutOyuncununKoyduguZehirSayisi++;
         OnPoisonPlacedByPlayer?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
 
-        Debug.Log($"[Setup] Oyuncu {mevcutZehirKoyanOyuncuIndeksi} zehir koydu ({mevcutOyuncununKoyduguZehirSayisi}/{oyuncuBasinaZehir}).");
-
         // Bu oyuncu zehirlerini bitirdi mi?
         if (mevcutOyuncununKoyduguZehirSayisi >= oyuncuBasinaZehir)
         {
@@ -109,7 +105,6 @@ public class GameSetupManager : MonoBehaviour
             }
             else
             {
-                Debug.Log($"[Setup] Siradaki oyuncu: {mevcutZehirKoyanOyuncuIndeksi}. Kalan zehir: {KalanZehirSayisi}");
                 OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
             }
         }
@@ -144,19 +139,12 @@ public class GameSetupManager : MonoBehaviour
     void SetupBitir()
     {
         CurrentPhase = GamePhase.Playing;
-        
-        // turnManager.InitializeTurnSystem(); satırı silindi! 
-        // Çünkü BaslatSetup() içindeki StartGame() ile oyuncular zaten oluşturuldu.
-        
+
         if (oyuncuKarakterSecimleri != null && oyuncuKarakterSecimleri.Length > 0)
             KarakterleriAta(oyuncuKarakterSecimleri);
         else
             KarakterleriRastgeleAta();
 
-        int toplamZehir = masaYonetici.CountByType(CupType.POISON);
-        int toplamPanzehir = masaYonetici.CountByType(CupType.ANTIDOTE);
-
-        Debug.Log($"[Setup] Setup tamamlandi. Zehir: {toplamZehir}, Panzehir: {toplamPanzehir}. Oyun basladi!");
         OnSetupComplete?.Invoke();
         playerTurnController?.YeniTurBasladi();
     }
@@ -200,7 +188,6 @@ public class GameSetupManager : MonoBehaviour
     /// <summary>
     /// Karakter secim hook'u: UI'dan veya disaridan karakter listesi ile cagrilabilir.
     /// Oyuncu sayisindan az karakter verilirse dongusal olarak tamamlanir.
-    /// Ornek kullanim: KarakterleriAta(new[]{ Doctor, Detective, Chemist, Survivor });
     /// </summary>
     public void KarakterleriAta(CharacterType[] secilenKarakterler)
     {
@@ -213,7 +200,6 @@ public class GameSetupManager : MonoBehaviour
         {
             CharacterType atanan = secilenKarakterler[i % secilenKarakterler.Length];
             turnManager.AssignCharacter(i, atanan);
-            Debug.Log($"[Setup] Oyuncu {i} -> {atanan}");
         }
     }
 
@@ -227,6 +213,21 @@ public class GameSetupManager : MonoBehaviour
 
         oyuncuKarakterSecimleri = new CharacterType[secilenKarakterler.Length];
         Array.Copy(secilenKarakterler, oyuncuKarakterSecimleri, secilenKarakterler.Length);
+    }
+
+    #endregion
+
+    #region Reset
+
+    /// <summary>
+    /// GameManager tarafindan cagrildiginda setup asamasini sifirlar.
+    /// </summary>
+    public void ResetGameSetup()
+    {
+        CurrentPhase = GamePhase.Setup;
+        mevcutZehirKoyanOyuncuIndeksi = 0;
+        mevcutOyuncununKoyduguZehirSayisi = 0;
+        oyuncuKarakterSecimleri = Array.Empty<CharacterType>();
     }
 
     #endregion

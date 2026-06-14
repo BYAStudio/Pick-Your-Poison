@@ -41,26 +41,21 @@ public class BotAI : MonoBehaviour
             int bardak = masaYonetici.GetRandomUnconsumedCupIndex();
             if (bardak >= 0)
             {
-                Debug.Log($"[BotAI] Oyuncu {botPlayerID} (Bot) bardak icmeye karar verdi -> Bardak {bardak}.");
                 playerTurnController.BardakSecVeIc(bardak);
             }
             else
             {
-                Debug.Log($"[BotAI] Oyuncu {botPlayerID} (Bot) bardak bulamadi, kart cekiyor.");
                 BotKartCekVeResolve(botPlayerID);
             }
         }
         else
         {
-            Debug.Log($"[BotAI] Oyuncu {botPlayerID} (Bot) kart cekmeye karar verdi.");
             BotKartCekVeResolve(botPlayerID);
         }
     }
 
     /// <summary>
     /// Bot kart ceker ve UI beklemeden rastgele secimlerle efektini otomatik cozer.
-    /// Acgozluluk Cezasi: 2 rastgele bardak, Zoraki Ikram: rastgele hedef + bardak,
-    /// Tarama kartlari: rastgele 2x2 alan.
     /// </summary>
     void BotKartCekVeResolve(int botPlayerID)
     {
@@ -74,9 +69,7 @@ public class BotAI : MonoBehaviour
             return;
 
         CardType cekilenKart = cardManager.CekKart();
-        Debug.Log($"[BotAI] Oyuncu {botPlayerID} (Bot) kart cekti: {cekilenKart} (RNG: {cardManager.SonRNGDegeri})");
 
-        // Kart icin gerekli parametreleri otomatik olustur
         int secilenAlanIndeksi = RastgeleGecerli2x2TopLeft();
         int[] farkliBardaklar = masaYonetici.GetRandomDistinctUnconsumedCupIndices(2);
         int secilenBardak1 = farkliBardaklar.Length > 0 ? farkliBardaklar[0] : -1;
@@ -92,12 +85,7 @@ public class BotAI : MonoBehaviour
             hedefOyuncuID
         );
 
-        // Oyuncu olduyse kaydet
-        Player bot = turnManager.GetPlayer(botPlayerID);
-        if (bot != null && !bot.IsAlive)
-        {
-            turnManager.RegisterPlayerDeath(botPlayerID);
-        }
+        // Olum kaydi CardManager icindeki ResolveCupEffect / ApplyPoisonToPlayer tarafindan yapilir
 
         // Turu sonlandir
         playerTurnController.TuruSonlandir();
