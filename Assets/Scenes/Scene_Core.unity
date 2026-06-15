@@ -352,6 +352,7 @@ GameObject:
   - component: {fileID: 983239147}
   - component: {fileID: 983239146}
   - component: {fileID: 983239145}
+  - component: {fileID: 983239149}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -402,7 +403,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DebugPanel
   masaYonetici: {fileID: 0}
   turnManager: {fileID: 0}
-  konsolaYazdirTusu: 293
+  gameSetupManager: {fileID: 0}
+  playerTurnController: {fileID: 0}
+  cardManager: {fileID: 0}
+  botAI: {fileID: 0}
+  otomatikKurulum: 1
+  oyuncuSayisi: 4
+  oyuncuBasinaZehir: 3
+  baslangicPanzehirSayisi: 4
+  konsolaYazdirTusu: 105
+  resetTusu: 32
+  rastgeleBardakIcTusu: 30
+  kartCekTusu: 25
+  botTurnTusu: 16
+  turBitirTusu: 28
+  yonDegistirTusu: 36
+  aktifOyuncuyuZehirleTusu: 40
+  aktifOyuncuyuIyilestirTusu: 38
 --- !u!4 &983239148
 Transform:
   m_ObjectHideFlags: 0
@@ -418,6 +435,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &983239149
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 983239144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbc66df3efc058340b25b007f120bd6a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameSetupManager
+  masaYonetici: {fileID: 0}
+  turnManager: {fileID: 0}
+  oyuncuSayisi: 4
+  oyuncuBasinaZehir: 3
+  baslangicPanzehirSayisi: 6
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

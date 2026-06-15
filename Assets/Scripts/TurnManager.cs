@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -25,6 +26,11 @@ public class TurnManager : MonoBehaviour
 
     readonly List<Player> oyuncular = new List<Player>();
 
+    // UI'in dinleyebilecegi olaylar (instance-level: scene reload'da ghost event onlenir)
+    // Kullanim: UI script'lerinde OnEnable/OnDisable ile subscribe/unsubscribe yapin
+    public event Action<Player> OnPlayerDiedFromPoisonTimer;
+    public event Action<bool> OnGameOver; // true = tek kazanan, false = beraberlik
+
     public int AktifOyuncuIndeksi => aktifOyuncuIndeksi;
     public TurnDirection TurYonu => turYonu;
     public bool OyunBitti => oyunBitti;
@@ -44,6 +50,9 @@ public class TurnManager : MonoBehaviour
         turYonu = TurnDirection.SaatYonu;
         oyunBitti = false;
         kazananOyuncuID = -1;
+
+        _cachedMasaYonetici = null;
+
         CreatePlayers();
     }
 
@@ -222,10 +231,56 @@ public class TurnManager : MonoBehaviour
 
     #region Poisoned Timer
 
-    public void ApplyPoisonToPlayer(int playerID, int turnsToSurvive = VarsayilanZehirlenmeSuresi)
+    public void ApplyPoisonToPlayer(int playerID, int turnsToSurvive = -1)
     {
         Player oyuncu = GetPlayer(playerID);
-        oyuncu?.ApplyPoison(turnsToSurvive);
+        if (oyuncu == null) return;
+
+        int sure = turnsToSurvive >= 0 ? turnsToSurvive : oyuncu.GetPoisonSurvivalTurns();
+        oyuncu.ApplyPoison(sure);
+
+        // ApplyPoison icinde ikinci zehirle olmusse event firlat
+        if (!oyuncu.IsAlive)
+        {
+            OnPlayerDiedFromPoisonTimer?.Invoke(oyuncu);
+        }
+    }
+
+    public void ResolveCupEffect(int playerID, CupType cupType)
+    {
+        Player oyuncu = GetPlayer(playerID);
+        if (oyuncu == null || !oyuncu.IsAlive)
+            return;
+
+        switch (cupType)
+        {
+            case CupType.POISON:
+                oyuncu.ApplyPoison(oyuncu.GetPoisonSurvivalTurns());
+                break;
+
+            case CupType.ANTIDOTE:
+                oyuncu.CurePoison();
+                break;
+        }
+
+        // Bardak yoluyla olum (ikinci zehir) → RegisterPlayerDeath + event
+        if (!oyuncu.IsAlive)
+        {
+            RegisterPlayerDeath(playerID);
+            OnPlayerDiedFromPoisonTimer?.Invoke(oyuncu);
+        }
+    }
+
+    public void AssignCharacter(int playerID, CharacterType type)
+    {
+        Player oyuncu = GetPlayer(playerID);
+        if (oyuncu == null)
+            return;
+
+        oyuncu.characterType = type;
+
+        if (type == CharacterType.Survivor)
+            oyuncu.skipHakki = 2;
     }
 
     /// <summary>
@@ -275,7 +330,42 @@ public class TurnManager : MonoBehaviour
 
     public void OnPoisonedTimerExpired(int playerID)
     {
-        Debug.Log($"[TurnManager] Oyuncu {playerID} panzehir bulamadan öldü.");
+        Player oyuncu = GetPlayer(playerID);
+        OnPlayerDiedFromPoisonTimer?.Invoke(oyuncu);
+    }
+
+    #endregion
+
+    #region Dedektif Pasif Yetenek (UI Erisimi)
+
+    MasaYonetici _cachedMasaYonetici;
+
+    MasaYonetici GetMasaYonetici()
+    {
+        if (_cachedMasaYonetici == null)
+            _cachedMasaYonetici = FindAnyObjectByType<MasaYonetici>();
+
+        return _cachedMasaYonetici;
+    }
+
+    /// <summary>
+    /// Masada anlik olarak kalan (icilmemis) toplam zehirli bardak sayisi.
+    /// Dedektif pasif yetenegi icin UI'in erisebilecegi metot.
+    /// </summary>
+    public int GetRemainingPoisonCount()
+    {
+        var masa = GetMasaYonetici();
+        return masa != null ? masa.CountUnconsumedByType(CupType.POISON) : 0;
+    }
+
+    /// <summary>
+    /// Masada anlik olarak kalan (icilmemis) toplam panzehirli bardak sayisi.
+    /// Dedektif pasif yetenegi icin UI'in erisebilecegi metot.
+    /// </summary>
+    public int GetRemainingAntidoteCount()
+    {
+        var masa = GetMasaYonetici();
+        return masa != null ? masa.CountUnconsumedByType(CupType.ANTIDOTE) : 0;
     }
 
     #endregion
@@ -284,30 +374,53 @@ public class TurnManager : MonoBehaviour
 
     public bool CheckGameEnd()
     {
+        // Sart 1: Hayatta kalan 1 veya daha az oyuncu
         int hayatta = GetLivingPlayerCount();
 
-        if (hayatta > 1)
-            return false;
-
-        oyunBitti = true;
-
-        if (hayatta == 1)
+        if (hayatta <= 1)
         {
-            for (int i = 0; i < oyuncular.Count; i++)
+            oyunBitti = true;
+
+            if (hayatta == 1)
             {
-                if (oyuncular[i].IsAlive)
+                for (int i = 0; i < oyuncular.Count; i++)
                 {
-                    kazananOyuncuID = oyuncular[i].playerID;
-                    break;
+                    if (oyuncular[i].IsAlive)
+                    {
+                        kazananOyuncuID = oyuncular[i].playerID;
+                        break;
+                    }
                 }
             }
-        }
-        else
-        {
-            kazananOyuncuID = -1;
+            else
+            {
+                kazananOyuncuID = -1; // Beraberlik (0 hayatta)
+            }
+
+            OnGameOver?.Invoke(hayatta == 1);
+
+            if (hayatta == 1)
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.GameWin);
+            else
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.GameDraw);
+
+            return true;
         }
 
-        return oyunBitti;
+        // Sart 2: Masadaki tum bardaklar tukendi
+        var masa = GetMasaYonetici();
+        if (masa != null && masa.AreAllCupsConsumed())
+        {
+            oyunBitti = true;
+            kazananOyuncuID = -1; // Coklu kazanan / beraberlik
+            OnGameOver?.Invoke(false);
+
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.GameDraw);
+
+            return true;
+        }
+
+        return false;
     }
 
     public bool IsGameOver()
@@ -326,6 +439,28 @@ public class TurnManager : MonoBehaviour
         }
 
         return count;
+    }
+
+    public int GetTotalPlayerCount()
+    {
+        return oyuncular.Count;
+    }
+
+    /// <summary>
+    /// Hayatta kalan oyuncularin ID listesini dondurur.
+    /// Oyun bittiginde UI'in kazananlari gostermesi icin kullanilir.
+    /// </summary>
+    public List<int> GetAlivePlayerIDs()
+    {
+        var alive = new List<int>();
+
+        for (int i = 0; i < oyuncular.Count; i++)
+        {
+            if (oyuncular[i].IsAlive)
+                alive.Add(oyuncular[i].playerID);
+        }
+
+        return alive;
     }
 
     public void EndGame(int winnerPlayerID)
