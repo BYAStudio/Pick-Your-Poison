@@ -6,6 +6,15 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Ana_Menu.unity
+    guid: cbf96af6fc6d8674abc0876ee80484a8
+  - enabled: 1
+    path: Assets/Scenes/Oyun_Sahnesi.unity
+    guid: 2312acf8fe68b0c44837cbb1adcbd21c
+  - enabled: 1
+    path: Assets/Scenes/Game_Over.unity
+    guid: e61b3800bbd914c42bc0e5798c2b14f3
+  - enabled: 0
     path: Assets/Scenes/Scene_Core.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   m_configObjects:

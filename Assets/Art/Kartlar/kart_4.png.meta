@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: fc725a5eac134d9478053940c1ad4188
+guid: 58107283b96f91b4f88b3a8efe208556
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -1002152736429235243
-    second: "k\u0131rm\u0131z\u0131_bardak_0"
+      213: -2323624500632646553
+    second: kart_4_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -100,13 +100,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "k\u0131rm\u0131z\u0131_bardak_0"
+      name: kart_4_0
       rect:
         serializedVersion: 2
-        x: 329
-        y: 4
-        width: 695
-        height: 658
+        x: 11
+        y: 20
+        width: 804
+        height: 1115
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +115,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 5d323765563a712f0800000000000000
-      internalID: -1002152736429235243
+      spriteID: 76c8568e3d3d0cfd0800000000000000
+      internalID: -2323624500632646553
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      "k\u0131rm\u0131z\u0131_bardak_0": -1002152736429235243
+      kart_4_0: -2323624500632646553
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
