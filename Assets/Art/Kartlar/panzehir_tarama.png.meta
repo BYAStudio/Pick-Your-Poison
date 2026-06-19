@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: b54fe46f63b741248b001b00a305a5dd
+guid: b18466056e9f34945ad58d70c1c35cd3
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -1094817100297255029
-    second: kart_2_0
+      213: -1134049632088323199
+    second: panzehir_tarama_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -96,17 +96,30 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: kart_2_0
+      name: panzehir_tarama_0
       rect:
         serializedVersion: 2
-        x: 36
-        y: 61
-        width: 1633
-        height: 2287
+        x: 20
+        y: 0
+        width: 1667
+        height: 2352
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b8742cad5ad6ec0f0800000000000000
-      internalID: -1094817100297255029
+      spriteID: 18b86b93edb0340f0800000000000000
+      internalID: -1134049632088323199
       vertices: []
       indices: 
       edges: []
@@ -135,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      kart_2_0: -1094817100297255029
+      panzehir_tarama_0: -1134049632088323199
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

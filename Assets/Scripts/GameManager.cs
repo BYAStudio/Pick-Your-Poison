@@ -12,7 +12,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] string gameSceneName = "Scene_Core";
 
     [Tooltip("Ana menu sahnesinin adi veya build index'i")]
-    [SerializeField] string mainMenuSceneName = "MainMenu";
+    [SerializeField] string mainMenuSceneName = "Ana_Menu";
 
     [Header("Davranis")]
     [Tooltip("Restart'ta sahne mi yoksa TurnManager/Masa reset mi kullanilsin?")]

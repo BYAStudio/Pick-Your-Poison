@@ -1,10 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Faz 2: Bot yapay zekasi. Saglikliyse kart cek veya bardak ic.
-/// Zehirliyse %90 ihtimalle bardak secmelidir.
-/// Bot kart cektiginde UI beklemeden rastgele hedefler/bardaklar secerek otomatik resolve eder.
+/// Bot yapay zekası.
+/// Tüm aksiyon animasyonlarını tam olarak oynatır; herkes ne yaptığını görür.
 /// </summary>
 public class BotAI : MonoBehaviour
 {
@@ -19,62 +19,108 @@ public class BotAI : MonoBehaviour
         ResolveReferences();
     }
 
+    // ─────────────────────────────────────────
+    //  Ana giriş noktaları
+    // ─────────────────────────────────────────
+
     /// <summary>
-    /// Belirtilen bot oyuncusu icin tur aksiyonunu calistirir.
+    /// Botun tur kararını (bardak mı / kart mı) döndürür. Coroutine değil — anında çalışır.
     /// </summary>
-    public void ExecuteBotTurn(int botPlayerID)
+    public bool DecideBotAction(int botPlayerID)
     {
-        if (turnManager == null || playerTurnController == null)
-            return;
+        ResolveReferences();
+        Player bot = turnManager?.GetPlayer(botPlayerID);
+        if (bot == null) return false;
+        return ShouldDrinkCup(bot);
+    }
 
-        if (!playerTurnController.TurAktif)
-            return;
+    /// <summary>
+    /// SelectionPanel kapandıktan sonra çağrılır. Aksiyonu animasyonlu uygular.
+    /// </summary>
+    public void ExecuteBotDecision(int botPlayerID, bool willDrink)
+    {
+        StartCoroutine(ExecuteBotDecisionCoroutine(botPlayerID, willDrink));
+    }
 
-        Player bot = turnManager.GetPlayer(botPlayerID);
-        if (bot == null || !bot.IsAlive)
-            return;
+    private IEnumerator ExecuteBotDecisionCoroutine(int botPlayerID, bool willDrink)
+    {
+        ResolveReferences();
 
-        bool icmeli = ShouldDrinkCup(bot);
+        if (!playerTurnController.TurAktif) yield break;
 
-        if (icmeli)
+        Player bot = turnManager?.GetPlayer(botPlayerID);
+        if (bot == null || !bot.IsAlive) yield break;
+
+        if (willDrink)
         {
-            int bardak = masaYonetici.GetRandomUnconsumedCupIndex();
+            int bardak = masaYonetici != null ? masaYonetici.GetRandomUnconsumedCupIndex() : -1;
+
             if (bardak >= 0)
             {
+                // Tam animasyonlu bardak içme (CupClickTrigger + TuruSonlandir callback ile)
                 playerTurnController.BardakSecVeIc(bardak);
             }
             else
             {
-                BotKartCekVeResolve(botPlayerID);
+                // Bardak kalmadıysa kart çek
+                yield return StartCoroutine(BotKartCekVeGoster(botPlayerID));
             }
         }
         else
         {
-            BotKartCekVeResolve(botPlayerID);
+            yield return StartCoroutine(BotKartCekVeGoster(botPlayerID));
         }
     }
 
-    /// <summary>
-    /// Bot kart ceker ve UI beklemeden rastgele secimlerle efektini otomatik cozer.
-    /// </summary>
-    void BotKartCekVeResolve(int botPlayerID)
-    {
-        if (cardManager == null)
-        {
-            Debug.LogWarning("[BotAI] CardManager referansi yok, kart cekilemiyor.");
-            return;
-        }
+    // ─────────────────────────────────────────
+    //  Kart çekme (herkese göster)
+    // ─────────────────────────────────────────
 
-        if (!playerTurnController.TurAktif)
-            return;
+    /// <summary>
+    /// Bot kart çeker, CardRevealPanel ile herkese gösterir, kapanınca efekti uygular.
+    /// </summary>
+    private IEnumerator BotKartCekVeGoster(int botPlayerID)
+    {
+        if (cardManager == null || !playerTurnController.TurAktif)
+            yield break;
 
         CardType cekilenKart = cardManager.CekKart();
 
-        int secilenAlanIndeksi = RastgeleGecerli2x2TopLeft();
-        int[] farkliBardaklar = masaYonetici.GetRandomDistinctUnconsumedCupIndices(2);
-        int secilenBardak1 = farkliBardaklar.Length > 0 ? farkliBardaklar[0] : -1;
-        int secilenBardak2 = farkliBardaklar.Length > 1 ? farkliBardaklar[1] : -1;
-        int hedefOyuncuID = RastgeleHedefOyuncu(botPlayerID);
+        // --- Kartı herkese göster ---
+        CardRevealPanelController reveal = FindAnyObjectByType<CardRevealPanelController>();
+        if (reveal != null)
+        {
+            bool revealBitti = false;
+            reveal.ShowCard(cekilenKart, () => revealBitti = true);
+            yield return new WaitUntil(() => revealBitti);
+        }
+
+        if (!playerTurnController.TurAktif) yield break;
+
+        // --- Açgözlülük Cezası: animasyonlu 2 bardak ---
+        if (cekilenKart == CardType.AcgozlulukCezasi)
+        {
+            int[] bardaklar = masaYonetici != null
+                ? masaYonetici.GetRandomDistinctUnconsumedCupIndices(2)
+                : new int[0];
+            int b1 = bardaklar.Length > 0 ? bardaklar[0] : -1;
+            int b2 = bardaklar.Length > 1 ? bardaklar[1] : -1;
+            playerTurnController.TetikleAcgozlulukCezasi(botPlayerID, b1, b2);
+            yield break; // TuruSonlandir coroutine içinde çağrılır
+        }
+
+        // --- Diğer kartlar ---
+        if (masaYonetici == null)
+        {
+            playerTurnController.TuruSonlandir();
+            yield break;
+        }
+
+        int secilenAlanIndeksi = masaYonetici.GetRandomValid2x2TopLeftIndex();
+        int[] farkliBardaklar  = masaYonetici.GetRandomDistinctUnconsumedCupIndices(2);
+        int secilenBardak1     = farkliBardaklar.Length > 0 ? farkliBardaklar[0] : -1;
+        int secilenBardak2     = farkliBardaklar.Length > 1 ? farkliBardaklar[1] : -1;
+        int hedefOyuncuID      = RastgeleHedefOyuncu(botPlayerID);
 
         cardManager.UygulaKartEtkisi(
             cekilenKart,
@@ -85,47 +131,31 @@ public class BotAI : MonoBehaviour
             hedefOyuncuID
         );
 
-        // Olum kaydi CardManager icindeki ResolveCupEffect / ApplyPoisonToPlayer tarafindan yapilir
-
-        // Turu sonlandir
         playerTurnController.TuruSonlandir();
     }
 
-    /// <summary>
-    /// Botun bardak icmesi mi yoksa kart cekmesi mi gerektigine karar verir.
-    /// </summary>
+    // ─────────────────────────────────────────
+    //  Karar verici
+    // ─────────────────────────────────────────
+
     bool ShouldDrinkCup(Player bot)
     {
         if (bot.currentState == PlayerState.Poisoned)
-        {
-            // Zehirliyse %90 bardak ic, %10 kart cek
-            return Random.Range(0, 100) < 90;
-        }
+            return Random.Range(0, 100) < 90; // Zehirliyse %90 bardak iç
 
-        // Saglikli: %40 bardak ic, %60 kart cek
-        return Random.Range(0, 100) < 40;
+        return Random.Range(0, 100) < 40; // Sağlıklı: %40 bardak, %60 kart
     }
 
-    /// <summary>
-    /// Gecerli bir 2x2 top-left indeksi dondurur (bot tarama kartlari icin).
-    /// </summary>
-    int RastgeleGecerli2x2TopLeft()
-    {
-        if (masaYonetici == null)
-            return 0;
+    // ─────────────────────────────────────────
+    //  Yardımcı
+    // ─────────────────────────────────────────
 
-        return masaYonetici.GetRandomValid2x2TopLeftIndex();
-    }
-
-    /// <summary>
-    /// Aktif oyuncu disinda rastgele bir hayatta olan hedef oyuncu sec (Zoraki Ikram icin).
-    /// </summary>
     int RastgeleHedefOyuncu(int aktifOyuncuID)
     {
         if (turnManager == null) return -1;
 
         var hedefler = new List<int>();
-        int toplam = turnManager.GetTotalPlayerCount();
+        int toplam   = turnManager.GetTotalPlayerCount();
 
         for (int i = 0; i < toplam; i++)
         {
@@ -133,24 +163,14 @@ public class BotAI : MonoBehaviour
                 hedefler.Add(i);
         }
 
-        if (hedefler.Count == 0)
-            return -1;
-
-        return hedefler[Random.Range(0, hedefler.Count)];
+        return hedefler.Count == 0 ? -1 : hedefler[Random.Range(0, hedefler.Count)];
     }
 
     void ResolveReferences()
     {
-        if (masaYonetici == null)
-            masaYonetici = FindAnyObjectByType<MasaYonetici>();
-
-        if (turnManager == null)
-            turnManager = FindAnyObjectByType<TurnManager>();
-
-        if (playerTurnController == null)
-            playerTurnController = FindAnyObjectByType<PlayerTurnController>();
-
-        if (cardManager == null)
-            cardManager = FindAnyObjectByType<CardManager>();
+        if (masaYonetici        == null) masaYonetici        = FindAnyObjectByType<MasaYonetici>();
+        if (turnManager         == null) turnManager         = FindAnyObjectByType<TurnManager>();
+        if (playerTurnController == null) playerTurnController = FindAnyObjectByType<PlayerTurnController>();
+        if (cardManager         == null) cardManager         = FindAnyObjectByType<CardManager>();
     }
 }

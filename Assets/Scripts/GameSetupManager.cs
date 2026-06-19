@@ -21,6 +21,8 @@ public class GameSetupManager : MonoBehaviour
     [SerializeField] TurnManager turnManager;
     [SerializeField] PlayerTurnController playerTurnController;
 
+    public static CharacterType[] SecilenKarakterler;
+
     [Header("Ayarlar")]
     [SerializeField] int oyuncuSayisi = 4;
     [SerializeField] int oyuncuBasinaZehir = 3;
@@ -50,6 +52,11 @@ public class GameSetupManager : MonoBehaviour
     {
         ResolveReferences();
 
+        if (SecilenKarakterler != null && SecilenKarakterler.Length > 0)
+        {
+            oyuncuKarakterSecimleri = SecilenKarakterler;
+        }
+
         if (masaYonetici == null || turnManager == null)
         {
             Debug.LogError("[GameSetupManager] Gerekli referanslar eksik.");
@@ -62,9 +69,6 @@ public class GameSetupManager : MonoBehaviour
 
         masaYonetici.ResetTable();
         turnManager.StartGame(oyuncuSayisi);
-
-        // 1. Sistem rastgele 6 panzehir yerlestirir
-        masaYonetici.PlaceRandomAntidotes(baslangicPanzehirSayisi);
 
         // 2. Ilk oyuncu zehir koymaya baslar
         OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
@@ -105,7 +109,15 @@ public class GameSetupManager : MonoBehaviour
             }
             else
             {
-                OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
+                // Eger oyuncu 0 (insan oyuncu) zehir yerlestirmeyi bitirdiyse botlar sırayla çakışmadan koysun
+                if (mevcutZehirKoyanOyuncuIndeksi == 1)
+                {
+                    ExecuteBotsPoisonPlacing();
+                }
+                else
+                {
+                    OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
+                }
             }
         }
 
@@ -136,14 +148,47 @@ public class GameSetupManager : MonoBehaviour
         SetupBitir();
     }
 
+    void ExecuteBotsPoisonPlacing()
+    {
+        for (int botOyuncu = 1; botOyuncu < oyuncuSayisi; botOyuncu++)
+        {
+            for (int i = 0; i < oyuncuBasinaZehir; i++)
+            {
+                int bosBardak = masaYonetici.GetRandomEmptyCupIndex();
+                if (bosBardak >= 0)
+                {
+                    masaYonetici.PlacePoison(bosBardak, botOyuncu);
+                }
+            }
+        }
+        SetupBitir();
+    }
+
     void SetupBitir()
     {
+        // Zehirleme islemi bittikten sonra kalan bos bardaklarin altısına panzehir koyar
+        masaYonetici.PlaceRandomAntidotes(baslangicPanzehirSayisi);
+
         CurrentPhase = GamePhase.Playing;
 
         if (oyuncuKarakterSecimleri != null && oyuncuKarakterSecimleri.Length > 0)
             KarakterleriAta(oyuncuKarakterSecimleri);
         else
             KarakterleriRastgeleAta();
+
+        // Oyun random bir kisiden baslar
+        int randomStartPlayer = UnityEngine.Random.Range(0, oyuncuSayisi);
+        turnManager.SetActivePlayer(randomStartPlayer);
+
+        // Giris banner'ini olustur ve goster (ust kisimda, tur banner'iyla capismaz)
+        var canvas = GameObject.Find("Canvas");
+        if (canvas != null)
+        {
+            var bannerGo = new GameObject("StartBanner");
+            bannerGo.transform.SetParent(canvas.transform, false);
+            var banner = bannerGo.AddComponent<StartingBannerController>();
+            banner.Initialize("Tüm zehir ve panzehirler hazır!\nOyun başladı!", 2.5f, 0.72f, 0.92f);
+        }
 
         OnSetupComplete?.Invoke();
         playerTurnController?.YeniTurBasladi();

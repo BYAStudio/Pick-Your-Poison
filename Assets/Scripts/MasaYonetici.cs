@@ -160,6 +160,12 @@ public class MasaYonetici : MonoBehaviour
     public void ResetTable()
     {
         InitializeCups();
+
+        // Reset all cup GameObjects visually
+        foreach (var trigger in FindObjectsByType<CupClickTrigger>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            trigger.ResetVisualState();
+        }
     }
 
     public bool PlaceAntidote(int targetIndex)
@@ -238,7 +244,7 @@ public class MasaYonetici : MonoBehaviour
         cup.ownerID = playerID;
     }
 
-    int GetRandomEmptyCupIndex()
+    public int GetRandomEmptyCupIndex()
     {
         var bosIndeksler = new List<int>();
 

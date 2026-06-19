@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 471a292b92260f845befc46412cb0004
+guid: e78f853578540b246a640f1bad48f7a0
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3752460031009511245
-    second: kart_3_0
+      213: 8674301925322066596
+    second: screenshot-20260619-140218_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -96,17 +96,30 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: kart_3_0
+      name: screenshot-20260619-140218_0
       rect:
         serializedVersion: 2
-        x: 20
+        x: 0
         y: 0
-        width: 1667
-        height: 2352
+        width: 1920
+        height: 1080
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: d475c2e448a631430800000000000000
-      internalID: 3752460031009511245
+      spriteID: 4aa0f4584af416870800000000000000
+      internalID: 8674301925322066596
       vertices: []
       indices: 
       edges: []
@@ -135,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      kart_3_0: 3752460031009511245
+      screenshot-20260619-140218_0: 8674301925322066596
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

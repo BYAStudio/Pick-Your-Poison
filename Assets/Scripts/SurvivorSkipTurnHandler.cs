@@ -85,22 +85,18 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
             return;
         }
 
-        // Tur atlama hakki kullan
-        aktifOyuncu.skipHakki--;
-        
-        Debug.Log($"[SurvivorSkipTurn] Survivor tur atladi. Kalan hak: {aktifOyuncu.skipHakki}");
-
-        // UI'i guncelle
-        KalanHakTextiniGuncelle(aktifOyuncu.skipHakki);
-        
-        // Hak 0 olduysa butonu deaktif et
-        if (aktifOyuncu.skipHakki <= 0)
+        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
+        if (turnController != null)
         {
-            SiraAtlaButonunuDevreDisiBirak();
-        }
+            var secimPanel = FindAnyObjectByType<SelectionPanelController>();
+            if (secimPanel != null)
+            {
+                secimPanel.HidePanel();
+            }
 
-        // Turu sonlandir (opsiyonel - oyun akisina bagli)
-        // turnManager?.EndTurn();
+            turnController.TurAtla();
+            UIElementleriniGuncelle();
+        }
     }
 
     #endregion

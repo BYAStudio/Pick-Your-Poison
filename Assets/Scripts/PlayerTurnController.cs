@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,6 +11,8 @@ public class PlayerTurnController : MonoBehaviour
     [SerializeField] MasaYonetici masaYonetici;
     [SerializeField] TurnManager turnManager;
     [SerializeField] CardManager cardManager;
+    [SerializeField] SelectionPanelController selectionPanelController;
+    [SerializeField] CardRevealPanelController cardRevealPanelController;
 
     [Header("Durum")]
     [SerializeField] bool turAktif = false;
@@ -18,6 +21,20 @@ public class PlayerTurnController : MonoBehaviour
     [SerializeField] bool secimGerektirenKartlariOtomatikCoz = true;
 
     public bool TurAktif => turAktif;
+    public bool IsWaitingForActionSelection { get; private set; } = false;
+    public CardRevealPanelController CardRevealPanel => cardRevealPanelController;
+
+    private Dictionary<int, CupClickTrigger> cupTriggers = new Dictionary<int, CupClickTrigger>();
+
+    // Karakter isimlerini Türkçe döndürür
+    private static readonly Dictionary<CharacterType, string> KarakterIsimleri = new Dictionary<CharacterType, string>
+    {
+        { CharacterType.None,      "Oyuncu"        },
+        { CharacterType.Doctor,    "Doktor"         },
+        { CharacterType.Survivor,  "Hayatta Kalan"  },
+        { CharacterType.Chemist,   "Kimyager"       },
+        { CharacterType.Detective, "Dedektif"       }
+    };
 
     void Awake()
     {
@@ -38,6 +55,109 @@ public class PlayerTurnController : MonoBehaviour
         kartSecimiBekleniyor = false;
 
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnStart);
+
+        // Survivor sira atlama UI'ini guncelle
+        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+
+        // Tur başlangıç banner'ını göster, sonra aksiyonu başlat
+        StartCoroutine(TurnBannerVeBaslat());
+    }
+
+    /// <summary>
+    /// Önce "Sıra Sende [Karakter]" banner'ını gösterir (2s),
+    /// sonra oyuncu veya bot için seçim panelini açar.
+    /// Botlar için panel otomatik karar verir ve vurgular.
+    /// </summary>
+    private IEnumerator TurnBannerVeBaslat()
+    {
+        int activeID = turnManager != null ? turnManager.GetActivePlayerID() : 0;
+        string karakter = GetPlayerDisplayName(activeID);
+
+        string bannerMetni;
+        if (activeID == 0)
+            bannerMetni = $"⚔  Sıra Sende\n{karakter}";
+        else
+            bannerMetni = $"🤖  Sıra:\n{karakter}";
+
+        ShowTurnBanner(bannerMetni, 2.0f);
+
+        yield return new WaitForSeconds(2.0f);
+
+        if (turnManager != null && turnManager.IsGameOver())
+            yield break;
+
+        activeID = turnManager != null ? turnManager.GetActivePlayerID() : 0;
+
+        if (activeID > 0)
+        {
+            // ─── BOT TURU ───
+            BotAI botAI = FindAnyObjectByType<BotAI>();
+            if (botAI == null) yield break;
+
+            // Bot ne yapacağına karar ver
+            bool willDrink = botAI.DecideBotAction(activeID);
+
+            // SelectionPanel'i bot moduyla göster (2-3s düşünme + 2s vurgu)
+            SelectionPanelController panel =
+                selectionPanelController ?? FindSceneObjectOfType<SelectionPanelController>();
+
+            if (panel != null)
+            {
+                bool panelBitti = false;
+                float thinkingDelay = Random.Range(2.5f, 4.0f); // Bot "düşünme" süresi
+                panel.ShowForBot(willDrink, thinkingDelay, () => panelBitti = true);
+                yield return new WaitUntil(() => panelBitti);
+            }
+
+            if (turnManager != null && turnManager.IsGameOver()) yield break;
+
+            // Aksiyonu çalıştır (animasyonlu)
+            botAI.ExecuteBotDecision(activeID, willDrink);
+        }
+        else
+        {
+            // ─── OYUNCU TURU ───
+            IsWaitingForActionSelection = true;
+
+            SelectionPanelController panel =
+                selectionPanelController ?? FindSceneObjectOfType<SelectionPanelController>();
+
+            if (panel != null)
+                panel.ShowPanel();
+        }
+    }
+
+    /// <summary>
+    /// Canvas üzerinde geçici bir "sıra banner'ı" oluşturur.
+    /// </summary>
+    private void ShowTurnBanner(string text, float duration)
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        if (canvas == null) return;
+
+        GameObject bannerGO = new GameObject("TurnBanner");
+        bannerGO.transform.SetParent(canvas.transform, false);
+        StartingBannerController banner = bannerGO.AddComponent<StartingBannerController>();
+        banner.Initialize(text, duration);
+    }
+
+    /// <summary>
+    /// Oyuncunun Türkçe görüntü ismini döndürür.
+    /// </summary>
+    private string GetPlayerDisplayName(int playerID)
+    {
+        if (turnManager == null) return "Oyuncu";
+
+        Player p = turnManager.GetPlayer(playerID);
+        string karakterIsmi = (p != null && KarakterIsimleri.TryGetValue(p.characterType, out string isim))
+            ? isim
+            : "Oyuncu";
+
+        if (playerID == 0)
+            return karakterIsmi;
+
+        // Botlar için ek etiket
+        return $"Bot {playerID} ({karakterIsmi})";
     }
 
     public void TuruSonlandir()
@@ -46,8 +166,6 @@ public class PlayerTurnController : MonoBehaviour
         turAktif = false;
 
         // Ölü oyuncunun turu "EndTurn" ile sonlandirilmamali.
-        // Ölüm durumunda CheckGameEnd zaten ResolveCupEffect / ApplyPoisonToPlayer
-        // tarafindan tetiklenir.
         if (turnManager != null && !turnManager.IsGameOver())
         {
             Player aktif = turnManager.GetActivePlayer();
@@ -57,9 +175,23 @@ public class PlayerTurnController : MonoBehaviour
             }
         }
 
-        // Oyun bitmediyse sadece tur sonlandirma sesi çal
+        // Oyun bitmediyse tur sonlandirma sesi çal ve yeni turu baslat
         if (turnManager == null || !turnManager.IsGameOver())
+        {
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnEnd);
+            YeniTurBasladi();
+        }
+    }
+
+    public void OnDrinkCupSelected()
+    {
+        IsWaitingForActionSelection = false;
+    }
+
+    public void OnDrawCardSelected()
+    {
+        IsWaitingForActionSelection = false;
+        KartCekVeSiraSav();
     }
 
     #endregion
@@ -97,25 +229,52 @@ public class PlayerTurnController : MonoBehaviour
         }
 
         CupType icerik = masaYonetici.ConsumeCupForPlayer(bardakIndeksi, aktifOyuncu.playerID);
-        turnManager.ResolveCupEffect(aktifOyuncu.playerID, icerik);
 
-        // Bardak icerken ses
-        if (icerik == CupType.POISON)
-            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
-        else if (icerik == CupType.ANTIDOTE)
-            AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+        // Trigger'ı bul (lazy: dictionary'de yoksa sağne'de ara)
+        CupClickTrigger trigger = null;
+        if (!cupTriggers.TryGetValue(bardakIndeksi, out trigger))
+        {
+            foreach (var t in FindObjectsByType<CupClickTrigger>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (t.cupIndex == bardakIndeksi)
+                {
+                    trigger = t;
+                    cupTriggers[bardakIndeksi] = t;
+                    break;
+                }
+            }
+        }
+
+        if (trigger != null)
+        {
+            IsWaitingForActionSelection = true;
+            trigger.PlayDrinkAnimation(icerik, () =>
+            {
+                IsWaitingForActionSelection = false;
+                CompleteDrinking(aktifOyuncu.playerID, icerik);
+            });
+        }
         else
-            AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
+        {
+            CompleteDrinking(aktifOyuncu.playerID, icerik);
+        }
+    }
 
-        // ResolveCupEffect icinde olum kaydi ve event firlatilir
-        if (!aktifOyuncu.IsAlive)
+    private void CompleteDrinking(int playerID, CupType icerik)
+    {
+        Player oyuncu = turnManager.GetPlayer(playerID);
+        if (oyuncu == null || !oyuncu.IsAlive) return;
+
+        turnManager.ResolveCupEffect(playerID, icerik);
+        PlayDrinkSound(icerik);
+
+        if (!oyuncu.IsAlive)
         {
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
             TuruSonlandir();
             return;
         }
 
-        // Bardak ictikten sonra tur otomatik biter
         TuruSonlandir();
     }
 
@@ -133,15 +292,50 @@ public class PlayerTurnController : MonoBehaviour
 
         CardType cekilenKart = cardManager.CekKart();
 
-        // Hedef/Secim GEREKTIREN kartlar
-        if (cekilenKart == CardType.AcgozlulukCezasi ||
-            cekilenKart == CardType.ZehirTarama ||
+        // Kart Gosterim Paneli ile goster
+        CardRevealPanelController reveal = cardRevealPanelController;
+        if (reveal == null)
+        {
+            reveal = FindSceneObjectOfType<CardRevealPanelController>();
+        }
+
+        if (reveal != null)
+        {
+            // Kart paneli kapanınca efekti uygula
+            reveal.ShowCard(cekilenKart, () =>
+            {
+                ApplyCardEffectAndFinish(cekilenKart, aktifOyuncu.playerID);
+            });
+        }
+        else
+        {
+            ApplyCardEffectAndFinish(cekilenKart, aktifOyuncu.playerID);
+        }
+    }
+
+    private void ApplyCardEffectAndFinish(CardType cekilenKart, int aktifOyuncuID)
+    {
+        // Açgözlülük Cezası: animasyonlu 2 bardak içme (coroutine ile)
+        if (cekilenKart == CardType.AcgozlulukCezasi)
+        {
+            int[] bardaklar = masaYonetici != null
+                ? masaYonetici.GetRandomDistinctUnconsumedCupIndices(2)
+                : new int[0];
+            int b1 = bardaklar.Length > 0 ? bardaklar[0] : -1;
+            int b2 = bardaklar.Length > 1 ? bardaklar[1] : -1;
+            IsWaitingForActionSelection = true;
+            StartCoroutine(AcgozlulukCezasiAnimasyonlu(aktifOyuncuID, b1, b2));
+            return;
+        }
+
+        // Hedef/Secim GEREKTIREN diger kartlar
+        if (cekilenKart == CardType.ZehirTarama ||
             cekilenKart == CardType.PanzehirTarama ||
             cekilenKart == CardType.ZorakiIkram)
         {
             if (secimGerektirenKartlariOtomatikCoz)
             {
-                BekleyenKartIcinOtomatikSecimYap(cekilenKart, aktifOyuncu.playerID);
+                BekleyenKartIcinOtomatikSecimYap(cekilenKart, aktifOyuncuID);
             }
             else
             {
@@ -149,12 +343,77 @@ public class PlayerTurnController : MonoBehaviour
                 bekleyenKart = cekilenKart;
             }
         }
-        else // Secim GEREKTIRMEYEN direkt kartlar (Kritik Doz, Girdap, Nefeslenme)
+        else // Secim GEREKTIRMEYEN direkt kartlar (KritikDoz, Girdap, Nefeslenme)
         {
-            cardManager.UygulaKartEtkisi(cekilenKart, aktifOyuncu.playerID);
-            // ApplyPoisonToPlayer / ResolveCupEffect icinde olum kaydi yapilir
+            cardManager.UygulaKartEtkisi(cekilenKart, aktifOyuncuID);
             TuruSonlandir();
         }
+    }
+
+    /// <summary>
+    /// Açgözlük Cezası için animasyonlu 2 bardak içme.
+    /// BotAI tarafindan da çağırılabilir.
+    /// </summary>
+    public void TetikleAcgozlulukCezasi(int oyuncuID, int bardak1, int bardak2)
+    {
+        IsWaitingForActionSelection = true;
+        StartCoroutine(AcgozlulukCezasiAnimasyonlu(oyuncuID, bardak1, bardak2));
+    }
+
+    /// <summary>
+    /// Açgözlük Cezası için animasyonlu 2 bardak içme.
+    /// İki bardak sırayla animate edilir; arada 0.5s bekleme var.
+    /// </summary>
+    private IEnumerator AcgozlulukCezasiAnimasyonlu(int oyuncuID, int bardak1, int bardak2)
+    {
+        // --- Bardak 1 ---
+        if (bardak1 >= 0 && masaYonetici != null && !masaYonetici.IsConsumed(bardak1))
+        {
+            CupType tip1 = masaYonetici.ConsumeCupForPlayer(bardak1, oyuncuID);
+
+            if (cupTriggers.TryGetValue(bardak1, out CupClickTrigger trigger1))
+            {
+                bool done = false;
+                trigger1.PlayDrinkAnimation(tip1, () => done = true);
+                yield return new WaitUntil(() => done);
+            }
+
+            turnManager.ResolveCupEffect(oyuncuID, tip1);
+            PlayDrinkSound(tip1);
+
+            if (!turnManager.IsPlayerAlive(oyuncuID))
+            {
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
+                IsWaitingForActionSelection = false;
+                TuruSonlandir();
+                yield break;
+            }
+        }
+
+        // İki bardak arasında kısa nefes
+        yield return new WaitForSeconds(0.5f);
+
+        // --- Bardak 2 ---
+        if (bardak2 >= 0 && masaYonetici != null && !masaYonetici.IsConsumed(bardak2))
+        {
+            CupType tip2 = masaYonetici.ConsumeCupForPlayer(bardak2, oyuncuID);
+
+            if (cupTriggers.TryGetValue(bardak2, out CupClickTrigger trigger2))
+            {
+                bool done = false;
+                trigger2.PlayDrinkAnimation(tip2, () => done = true);
+                yield return new WaitUntil(() => done);
+            }
+
+            turnManager.ResolveCupEffect(oyuncuID, tip2);
+            PlayDrinkSound(tip2);
+
+            if (!turnManager.IsPlayerAlive(oyuncuID))
+                AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
+        }
+
+        IsWaitingForActionSelection = false;
+        TuruSonlandir();
     }
 
     /// <summary>
@@ -175,7 +434,6 @@ public class PlayerTurnController : MonoBehaviour
 
         kartSecimiBekleniyor = false;
         bekleyenKart = default;
-        // Olum kaydi CardManager icerisinde yapilir
         TuruSonlandir();
     }
 
@@ -293,6 +551,31 @@ public class PlayerTurnController : MonoBehaviour
 
         if (cardManager == null)
             cardManager = FindAnyObjectByType<CardManager>();
+
+        if (selectionPanelController == null)
+            selectionPanelController = FindSceneObjectOfType<SelectionPanelController>();
+
+        if (cardRevealPanelController == null)
+            cardRevealPanelController = FindSceneObjectOfType<CardRevealPanelController>();
+
+        cupTriggers.Clear();
+        foreach (var trigger in FindObjectsByType<CupClickTrigger>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            cupTriggers[trigger.cupIndex] = trigger;
+        }
+    }
+
+    private T FindSceneObjectOfType<T>() where T : MonoBehaviour
+    {
+        T[] objects = Resources.FindObjectsOfTypeAll<T>();
+        foreach (T obj in objects)
+        {
+            if (obj.gameObject.scene.name != null)
+            {
+                return obj;
+            }
+        }
+        return null;
     }
 
     void BekleyenKartIcinOtomatikSecimYap(CardType kart, int aktifOyuncuID)
@@ -311,14 +594,6 @@ public class PlayerTurnController : MonoBehaviour
 
         switch (kart)
         {
-            case CardType.AcgozlulukCezasi:
-            {
-                int[] bardaklar = masaYonetici.GetRandomDistinctUnconsumedCupIndices(2);
-                if (bardaklar.Length > 0) bardak1 = bardaklar[0];
-                if (bardaklar.Length > 1) bardak2 = bardaklar[1];
-                break;
-            }
-
             case CardType.ZorakiIkram:
             {
                 int[] bardaklar = masaYonetici.GetRandomDistinctUnconsumedCupIndices(1);
@@ -329,9 +604,17 @@ public class PlayerTurnController : MonoBehaviour
         }
 
         cardManager.UygulaKartEtkisi(kart, aktifOyuncuID, secilenAlan, bardak1, bardak2, hedefOyuncu);
-
-        // Olum kaydi CardManager icerisinde yapilir
         TuruSonlandir();
+    }
+
+    private void PlayDrinkSound(CupType tip)
+    {
+        if (tip == CupType.POISON)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+        else if (tip == CupType.ANTIDOTE)
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+        else
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
     }
 
     int RastgeleHayattaOlanHedefSec(int haricOyuncuID)

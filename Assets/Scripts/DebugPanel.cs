@@ -49,8 +49,19 @@ public class DebugPanel : MonoBehaviour
 
     void Start()
     {
-        if (otomatikKurulum)
+        ResolveReferences();
+        if (GameSetupManager.SecilenKarakterler != null && GameSetupManager.SecilenKarakterler.Length > 0)
+        {
+            otomatikKurulum = false; // Disable auto debug setup for real flow
+            if (gameSetupManager != null)
+            {
+                gameSetupManager.BaslatSetup(); // Start manual poison placing setup!
+            }
+        }
+        else if (otomatikKurulum)
+        {
             FazBirKurulumunuHazirla();
+        }
     }
 
     void Update()

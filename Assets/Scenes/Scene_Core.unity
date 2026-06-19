@@ -353,6 +353,9 @@ GameObject:
   - component: {fileID: 983239146}
   - component: {fileID: 983239145}
   - component: {fileID: 983239149}
+  - component: {fileID: 983239152}
+  - component: {fileID: 983239151}
+  - component: {fileID: 983239150}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -389,6 +392,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d88d1b1bbfe72542bd77140c1f77828, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MasaYonetici
+  sutunSayisi: 6
 --- !u!114 &983239147
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -449,9 +453,60 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameSetupManager
   masaYonetici: {fileID: 0}
   turnManager: {fileID: 0}
+  playerTurnController: {fileID: 0}
   oyuncuSayisi: 4
   oyuncuBasinaZehir: 3
   baslangicPanzehirSayisi: 6
+  oyuncuKarakterSecimleri: 
+--- !u!114 &983239150
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 983239144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c50f79a424eaa24989f0881f045d5c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BotAI
+  masaYonetici: {fileID: 0}
+  turnManager: {fileID: 0}
+  playerTurnController: {fileID: 0}
+  cardManager: {fileID: 0}
+--- !u!114 &983239151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 983239144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 906f19c697c94e446b1ef81b6a2316e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CardManager
+  masaYonetici: {fileID: 0}
+  turnManager: {fileID: 0}
+--- !u!114 &983239152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 983239144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8d42993aa0a9c446864981195419019, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerTurnController
+  masaYonetici: {fileID: 0}
+  turnManager: {fileID: 0}
+  cardManager: {fileID: 0}
+  turAktif: 0
+  kartSecimiBekleniyor: 0
+  bekleyenKart: 0
+  secimGerektirenKartlariOtomatikCoz: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
