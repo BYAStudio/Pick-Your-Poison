@@ -31,6 +31,13 @@ public class PlayerTurnController : MonoBehaviour
 
     private PlayerPoisonUIHandler uiHandler;
 
+    private bool isChoosingDrinkCup = false;
+    public bool IsChoosingDrinkCup => isChoosingDrinkCup;
+
+    private GameObject zorakiPanelGo;
+    private int zorakiTargetPlayerID = -1;
+    private bool isChoosingZorakiCup = false;
+
     public bool TurAktif => turAktif;
     public bool IsWaitingForActionSelection { get; private set; } = false;
     public bool AcgozlulukCezasiAktif => acgozlulukCezasiAktif;
@@ -170,6 +177,12 @@ public class PlayerTurnController : MonoBehaviour
     /// </summary>
     private IEnumerator TurnBannerVeBaslat()
     {
+        // Eger baslangic banner'i ekranda ise gecene kadar bekle
+        while (GameObject.Find("StartBanner") != null)
+        {
+            yield return null;
+        }
+
         int activeID = turnManager != null ? turnManager.GetActivePlayerID() : 0;
         string karakter = GetPlayerDisplayName(activeID);
 
@@ -224,6 +237,8 @@ public class PlayerTurnController : MonoBehaviour
 
             if (panel != null)
                 panel.ShowPanel();
+
+            FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
         }
     }
 
@@ -261,6 +276,10 @@ public class PlayerTurnController : MonoBehaviour
         if (!turAktif) return;
         turAktif = false;
 
+        isChoosingDrinkCup = false;
+        isChoosingZorakiCup = false;
+        if (zorakiPanelGo != null) Destroy(zorakiPanelGo);
+
         if (turnManager != null && !turnManager.IsGameOver())
         {
             turnManager.EndTurn();
@@ -277,11 +296,14 @@ public class PlayerTurnController : MonoBehaviour
     public void OnDrinkCupSelected()
     {
         IsWaitingForActionSelection = false;
+        isChoosingDrinkCup = true;
+        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
     }
 
     public void OnDrawCardSelected()
     {
         IsWaitingForActionSelection = false;
+        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
         KartCekVeSiraSav();
     }
 
@@ -319,7 +341,16 @@ public class PlayerTurnController : MonoBehaviour
             return;
         }
 
-        CupType icerik = masaYonetici.ConsumeCupForPlayer(bardakIndeksi, aktifOyuncu.playerID);
+        int targetPlayerID = aktifOyuncu.playerID;
+        if (isChoosingZorakiCup)
+        {
+            targetPlayerID = zorakiTargetPlayerID;
+            isChoosingZorakiCup = false;
+        }
+        isChoosingDrinkCup = false;
+        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+
+        CupType icerik = masaYonetici.ConsumeCupForPlayer(bardakIndeksi, targetPlayerID);
 
         // Trigger'ı bul (lazy: dictionary'de yoksa sağne'de ara)
         CupClickTrigger trigger = null;
@@ -342,12 +373,12 @@ public class PlayerTurnController : MonoBehaviour
             trigger.PlayDrinkAnimation(icerik, () =>
             {
                 IsWaitingForActionSelection = false;
-                CompleteDrinking(aktifOyuncu.playerID, icerik);
+                CompleteDrinking(targetPlayerID, icerik);
             });
         }
         else
         {
-            CompleteDrinking(aktifOyuncu.playerID, icerik);
+            CompleteDrinking(targetPlayerID, icerik);
         }
     }
 
@@ -489,14 +520,21 @@ public class PlayerTurnController : MonoBehaviour
         // Hedef/Secim GEREKTIREN diger kartlar
         if (cekilenKart == CardType.ZorakiIkram)
         {
-            if (secimGerektirenKartlariOtomatikCoz)
+            if (aktifOyuncuID == 0) // Human player
             {
-                BekleyenKartIcinOtomatikSecimYap(cekilenKart, aktifOyuncuID);
+                ShowZorakiIkramPanel();
             }
-            else
+            else // Bot player
             {
-                kartSecimiBekleniyor = true;
-                bekleyenKart = cekilenKart;
+                if (secimGerektirenKartlariOtomatikCoz)
+                {
+                    BekleyenKartIcinOtomatikSecimYap(cekilenKart, aktifOyuncuID);
+                }
+                else
+                {
+                    kartSecimiBekleniyor = true;
+                    bekleyenKart = cekilenKart;
+                }
             }
         }
         else // Secim GEREKTIRMEYEN direkt kartlar (KritikDoz, Girdap, Nefeslenme)
@@ -607,12 +645,10 @@ public class PlayerTurnController : MonoBehaviour
         Debug.LogWarning($"[PlayerTurnController] Bekleyen kart iptal edildi: {bekleyenKart}");
         kartSecimiBekleniyor = false;
         bekleyenKart = default;
+        if (zorakiPanelGo != null) Destroy(zorakiPanelGo);
         TuruSonlandir();
     }
 
-    /// <summary>
-    /// Survivor yetenegi: oyun boyunca 2 kez tur atlama hakki.
-    /// </summary>
     public bool TurAtla()
     {
         if (!turAktif) return false;
@@ -624,12 +660,19 @@ public class PlayerTurnController : MonoBehaviour
         if (aktifOyuncu.characterType == CharacterType.Survivor && aktifOyuncu.skipHakki > 0)
         {
             aktifOyuncu.skipHakki--;
-            TuruSonlandir();
+            StartCoroutine(TurAtlaCoroutine());
             return true;
         }
 
         Debug.LogWarning("[PlayerTurnController] Tur atlamak icin Survivor yetenegi veya skip hakki kalmamis.");
         return false;
+    }
+
+    private IEnumerator TurAtlaCoroutine()
+    {
+        ShowTurnBanner("Hayatta Kalan Özel Yeteneğini Kullandı!", 2.5f);
+        yield return new WaitForSeconds(2.5f);
+        TuruSonlandir();
     }
 
     /// <summary>
@@ -997,6 +1040,145 @@ public class PlayerTurnController : MonoBehaviour
             }
         }
         detectiveHighlightedCups.Clear();
+    }
+
+    private void ShowZorakiIkramPanel()
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        if (canvas == null) return;
+
+        if (zorakiPanelGo != null) Destroy(zorakiPanelGo);
+
+        zorakiPanelGo = new GameObject("ZorakiIkramPanel");
+        zorakiPanelGo.transform.SetParent(canvas.transform, false);
+
+        var bgImage = zorakiPanelGo.AddComponent<UnityEngine.UI.Image>();
+        bgImage.color = new Color(0.02f, 0.02f, 0.04f, 0.85f);
+
+        var rt = zorakiPanelGo.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        GameObject containerGo = new GameObject("Container");
+        containerGo.transform.SetParent(zorakiPanelGo.transform, false);
+
+        var cRt = containerGo.AddComponent<RectTransform>();
+        cRt.anchorMin = new Vector2(0.5f, 0.5f);
+        cRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cRt.pivot = new Vector2(0.5f, 0.5f);
+        cRt.sizeDelta = new Vector2(400f, 320f);
+
+        var cImg = containerGo.AddComponent<UnityEngine.UI.Image>();
+        cImg.color = new Color(0.06f, 0.06f, 0.09f, 0.98f);
+
+        var cOutline = containerGo.AddComponent<UnityEngine.UI.Outline>();
+        cOutline.effectColor = new Color(1f, 0.85f, 0.3f, 0.7f);
+        cOutline.effectDistance = new Vector2(2f, 2f);
+
+        GameObject titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(containerGo.transform, false);
+
+        var titleRt = titleGo.AddComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f);
+        titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.pivot = new Vector2(0.5f, 1f);
+        titleRt.anchoredPosition = new Vector2(0f, -25f);
+        titleRt.sizeDelta = new Vector2(0f, 40f);
+
+        var titleTmp = titleGo.AddComponent<TMPro.TextMeshProUGUI>();
+        titleTmp.text = "ZORAKİ İKRAM";
+        titleTmp.fontSize = 24f;
+        titleTmp.fontStyle = TMPro.FontStyles.Bold;
+        titleTmp.alignment = TMPro.TextAlignmentOptions.Center;
+        titleTmp.color = new Color(1f, 0.85f, 0.3f, 1f);
+
+        GameObject questionGo = new GameObject("Question");
+        questionGo.transform.SetParent(containerGo.transform, false);
+
+        var qRt = questionGo.AddComponent<RectTransform>();
+        qRt.anchorMin = new Vector2(0f, 1f);
+        qRt.anchorMax = new Vector2(1f, 1f);
+        qRt.pivot = new Vector2(0.5f, 1f);
+        qRt.anchoredPosition = new Vector2(0f, -70f);
+        qRt.sizeDelta = new Vector2(-40f, 60f);
+
+        var qTmp = questionGo.AddComponent<TMPro.TextMeshProUGUI>();
+        qTmp.text = "Hangi oyuncuya içecek içirmek istersin?";
+        qTmp.fontSize = 18f;
+        qTmp.alignment = TMPro.TextAlignmentOptions.Center;
+        qTmp.color = Color.white;
+        qTmp.enableWordWrapping = true;
+
+        float yPos = -140f;
+        for (int i = 1; i <= 3; i++)
+        {
+            int targetID = i;
+            Player p = turnManager.GetPlayer(targetID);
+            if (p == null) continue;
+
+            string name = GetPlayerDisplayName(targetID);
+            bool isAlive = p.IsAlive;
+
+            GameObject buttonGo = new GameObject($"TargetButton_{targetID}");
+            buttonGo.transform.SetParent(containerGo.transform, false);
+
+            var bRt = buttonGo.AddComponent<RectTransform>();
+            bRt.anchorMin = new Vector2(0.5f, 1f);
+            bRt.anchorMax = new Vector2(0.5f, 1f);
+            bRt.pivot = new Vector2(0.5f, 1f);
+            bRt.anchoredPosition = new Vector2(0f, yPos);
+            bRt.sizeDelta = new Vector2(280f, 40f);
+
+            var img = buttonGo.AddComponent<UnityEngine.UI.Image>();
+            img.color = isAlive ? new Color(0.15f, 0.15f, 0.25f, 0.9f) : new Color(0.2f, 0.1f, 0.1f, 0.5f);
+
+            var outline = buttonGo.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = isAlive ? new Color(1f, 1f, 1f, 0.2f) : new Color(0f, 0f, 0f, 0.2f);
+            outline.effectDistance = new Vector2(1f, 1f);
+
+            var btn = buttonGo.AddComponent<UnityEngine.UI.Button>();
+            btn.targetGraphic = img;
+            btn.interactable = isAlive;
+
+            btn.onClick.AddListener(() => OnZorakiTargetSelected(targetID));
+
+            GameObject textGo = new GameObject("Text");
+            textGo.transform.SetParent(buttonGo.transform, false);
+
+            var textRt = textGo.AddComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            var tmp = textGo.AddComponent<TMPro.TextMeshProUGUI>();
+            tmp.text = isAlive ? name : $"{name} (ÖLÜ)";
+            tmp.fontSize = 15f;
+            tmp.fontStyle = TMPro.FontStyles.Bold;
+            tmp.alignment = TMPro.TextAlignmentOptions.Center;
+            tmp.color = isAlive ? Color.white : new Color(0.6f, 0.6f, 0.6f, 0.5f);
+
+            yPos -= 50f;
+        }
+    }
+
+    private void OnZorakiTargetSelected(int targetPlayerID)
+    {
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+        zorakiTargetPlayerID = targetPlayerID;
+
+        if (zorakiPanelGo != null)
+        {
+            Destroy(zorakiPanelGo);
+        }
+
+        string targetName = GetPlayerDisplayName(targetPlayerID);
+        ShowTurnBanner($"Zoraki İkram!\nMasadan bir bardak seç. Seçtiğin bardak {targetName} oyuncusuna içirilecek.", 4.0f);
+
+        isChoosingZorakiCup = true;
+        IsWaitingForActionSelection = false;
     }
 
     #endregion

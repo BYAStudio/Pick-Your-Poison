@@ -53,15 +53,23 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
             return;
         }
 
-        // Aktif oyuncu Survivor mi?
-        if (aktifOyuncu.characterType == CharacterType.Survivor && aktifOyuncu.IsAlive)
+        // Aktif oyuncu Survivor mi ve hayatta mi? (Sadece insan oyuncu 0 ise ve Survivor ise)
+        if (aktifOyuncu.playerID == 0 && aktifOyuncu.characterType == CharacterType.Survivor && aktifOyuncu.IsAlive)
         {
-            SurvivorUIElementleriniAktifEt(aktifOyuncu);
+            var selectionPanel = FindAnyObjectByType<SelectionPanelController>();
+            bool isSelectionPanelActive = selectionPanel != null && selectionPanel.gameObject.activeSelf;
+
+            var turnController = FindAnyObjectByType<PlayerTurnController>();
+            bool isChoosingCup = turnController != null && turnController.IsChoosingDrinkCup;
+
+            if (isSelectionPanelActive || isChoosingCup)
+            {
+                SurvivorUIElementleriniAktifEt(aktifOyuncu);
+                return;
+            }
         }
-        else
-        {
-            UIElementleriniGiz();
-        }
+
+        UIElementleriniGiz();
     }
 
     /// <summary>
@@ -136,7 +144,7 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
             TMP_Text btnText = skipTurnButton.GetComponentInChildren<TMP_Text>();
             if (btnText != null)
             {
-                btnText.text = "Turu Atlama Hakkı";
+                btnText.text = "Hayatta Kalan Turu Atlama Hakkı";
             }
         }
 

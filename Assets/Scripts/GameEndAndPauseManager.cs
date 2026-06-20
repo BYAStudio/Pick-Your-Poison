@@ -51,10 +51,10 @@ public class GameEndAndPauseManager : MonoBehaviour
         pauseButtonGo.transform.SetParent(canvasGo.transform, false);
 
         var rt = pauseButtonGo.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(1f, 1f);
-        rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-20f, -20f);
+        rt.anchorMin = new Vector2(0.5f, 1f);
+        rt.anchorMax = new Vector2(0.5f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = new Vector2(0f, -20f);
         rt.sizeDelta = new Vector2(110f, 40f);
 
         var img = pauseButtonGo.AddComponent<Image>();
@@ -227,79 +227,11 @@ public class GameEndAndPauseManager : MonoBehaviour
         // Wait 2.5 seconds to let the death animation/sound finish before blocking screen
         yield return new WaitForSeconds(2.5f);
 
-        GameObject canvasGo = GameObject.Find("Canvas");
-        if (canvasGo == null) yield break;
-
-        // Hide pause button
-        if (pauseButtonGo != null) pauseButtonGo.SetActive(false);
-
-        // Fullscreen overlay
-        gameOverPanelGo = new GameObject("GameOverOverlay");
-        gameOverPanelGo.transform.SetParent(canvasGo.transform, false);
-
-        var rt = gameOverPanelGo.AddComponent<RectTransform>();
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
-
-        var img = gameOverPanelGo.AddComponent<Image>();
-        img.color = new Color(0.04f, 0.04f, 0.06f, 0.98f); // Main menu dark glass background style
-
-        // Center Container
-        GameObject containerGo = new GameObject("Container");
-        containerGo.transform.SetParent(gameOverPanelGo.transform, false);
-
-        var cRt = containerGo.AddComponent<RectTransform>();
-        cRt.anchorMin = new Vector2(0.5f, 0.5f);
-        cRt.anchorMax = new Vector2(0.5f, 0.5f);
-        cRt.pivot = new Vector2(0.5f, 0.5f);
-        cRt.sizeDelta = new Vector2(500f, 380f);
-
-        var cImg = containerGo.AddComponent<Image>();
-        cImg.color = new Color(0.08f, 0.08f, 0.12f, 0.95f);
-
-        var cOutline = containerGo.AddComponent<Outline>();
-        cOutline.effectColor = new Color(1f, 0.85f, 0.3f, 0.7f); // Gold border
-        cOutline.effectDistance = new Vector2(2f, 2f);
-
-        // Title
-        GameObject titleGo = new GameObject("Title");
-        titleGo.transform.SetParent(containerGo.transform, false);
-
-        var titleRt = titleGo.AddComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0f, 1f);
-        titleRt.anchorMax = new Vector2(1f, 1f);
-        titleRt.pivot = new Vector2(0.5f, 1f);
-        titleRt.anchoredPosition = new Vector2(0f, -40f);
-        titleRt.sizeDelta = new Vector2(0f, 50f);
-
         List<int> survivors = turnManager != null ? turnManager.GetAlivePlayerIDs() : new List<int>();
         bool hasSurvivors = survivors.Count > 0;
 
-        var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
-        titleTmp.text = hasSurvivors ? "TEBRİKLER!" : "OYUN BİTTİ";
-        titleTmp.fontSize = 32f;
-        titleTmp.fontStyle = FontStyles.Bold;
-        titleTmp.alignment = TextAlignmentOptions.Center;
-        titleTmp.color = new Color(1f, 0.85f, 0.3f, 1f);
-
-        // Message
-        GameObject msgGo = new GameObject("Message");
-        msgGo.transform.SetParent(containerGo.transform, false);
-
-        var msgRt = msgGo.AddComponent<RectTransform>();
-        msgRt.anchorMin = new Vector2(0f, 0.5f);
-        msgRt.anchorMax = new Vector2(1f, 0.5f);
-        msgRt.pivot = new Vector2(0.5f, 0.5f);
-        msgRt.anchoredPosition = new Vector2(0f, 40f);
-        msgRt.sizeDelta = new Vector2(-40f, 100f);
-
-        var msgTmp = msgGo.AddComponent<TextMeshProUGUI>();
-        msgTmp.fontSize = 20f;
-        msgTmp.alignment = TextAlignmentOptions.Center;
-        msgTmp.color = Color.white;
-        msgTmp.enableWordWrapping = true;
+        string title = hasSurvivors ? "TEBRİKLER!" : "OYUN BİTTİ";
+        string message = "";
 
         if (hasSurvivors)
         {
@@ -313,18 +245,17 @@ public class GameEndAndPauseManager : MonoBehaviour
                 }
             }
             string formattedNames = string.Join(", ", survivorNames);
-            msgTmp.text = $"{formattedNames}\n\nhayatta kalmayı başardı!";
+            message = $"{formattedNames}\n\nhayatta kalmayı başardı!";
         }
         else
         {
-            msgTmp.text = "Herkes öldü!\n\nHayatta kalan kimse olmadı.";
+            message = "Herkes öldü!\n\nHayatta kalan kimse olmadı.";
         }
 
-        // Button 1: Yeniden Oyna
-        CreateUIButton(containerGo.transform, "RestartButton", "YENİDEN OYNA", new Color(0.12f, 0.45f, 0.2f, 0.95f), new Vector2(0f, -50f), RestartGame);
+        GameOverSceneController.WinnerMessageTitle = title;
+        GameOverSceneController.WinnerMessageBody = message;
 
-        // Button 2: Ana Menüye Dön
-        CreateUIButton(containerGo.transform, "MainMenuButton", "ANA MENÜYE DÖN", new Color(0.1f, 0.1f, 0.15f, 0.95f), new Vector2(0f, -110f), ReturnToMainMenu);
+        SceneManager.LoadScene("Game_Over");
     }
 
     private void RestartGame()

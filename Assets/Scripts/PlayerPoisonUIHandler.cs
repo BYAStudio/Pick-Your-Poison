@@ -70,13 +70,11 @@ public class PlayerPoisonUIHandler : MonoBehaviour
                 refs.panelGo = panelGo;
                 refs.nameText = FindChildText(panelGo, "Oyuncu_Adi_Text");
                 
-                // Enlarge character names and make them bold
+                // Enlarge character names and make them bold and consistent
                 if (refs.nameText != null)
                 {
-                    if (refs.nameText.fontSize < 28f)
-                    {
-                        refs.nameText.fontSize = 28f;
-                    }
+                    refs.nameText.enableAutoSizing = false;
+                    refs.nameText.fontSize = 24f;
                     refs.nameText.fontStyle = FontStyles.Bold;
                 }
 
@@ -191,6 +189,8 @@ public class PlayerPoisonUIHandler : MonoBehaviour
                 if (panel.statusText != null)
                 {
                     panel.statusText.gameObject.SetActive(true);
+                    panel.statusText.margin = Vector4.zero;
+                    panel.statusText.fontStyle = FontStyles.Bold;
                     panel.statusText.text = "<color=red>ÖLDÜ</color>";
                 }
                 if (panel.durationText != null) 
@@ -217,25 +217,34 @@ public class PlayerPoisonUIHandler : MonoBehaviour
                 // Doktor için 4, diğerleri için 3 maksimum yuvarlak hakkı
                 int maxDots = player.characterType == CharacterType.Doctor ? 4 : 3;
 
-                // Doktor panelinde nokta_4 yoksa dinamik olarak oluştur
-                if (maxDots == 4 && panel.dots.Count < 4)
+                // Doktor panelinde nokta_4 yoksa dinamik olarak oluştur veya varsa konumunu düzelt
+                if (maxDots == 4)
                 {
                     Transform dot4Tr = panel.panelGo.transform.Find("nokta_4");
                     if (dot4Tr == null)
                     {
                         Transform dot3Tr = panel.panelGo.transform.Find("nokta_3");
-                        Transform dot2Tr = panel.panelGo.transform.Find("nokta_2");
-                        if (dot3Tr != null && dot2Tr != null)
+                        if (dot3Tr != null)
                         {
                             GameObject dot4Go = Instantiate(dot3Tr.gameObject, panel.panelGo.transform);
                             dot4Go.name = "nokta_4";
-                            dot4Go.transform.localPosition = new Vector3(130f, -45f, 0f);
+                            Vector3 dot3Pos = dot3Tr.localPosition;
+                            dot4Go.transform.localPosition = new Vector3(dot3Pos.x + 35f, dot3Pos.y, dot3Pos.z);
                             panel.dots.Add(dot4Go);
                         }
                     }
-                    else if (!panel.dots.Contains(dot4Tr.gameObject))
+                    else
                     {
-                        panel.dots.Add(dot4Tr.gameObject);
+                        Transform dot3Tr = panel.panelGo.transform.Find("nokta_3");
+                        if (dot3Tr != null)
+                        {
+                            Vector3 dot3Pos = dot3Tr.localPosition;
+                            dot4Tr.localPosition = new Vector3(dot3Pos.x + 35f, dot3Pos.y, dot3Pos.z);
+                        }
+                        if (!panel.dots.Contains(dot4Tr.gameObject))
+                        {
+                            panel.dots.Add(dot4Tr.gameObject);
+                        }
                     }
                 }
 

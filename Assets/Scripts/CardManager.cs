@@ -12,19 +12,19 @@ public class CardManager : MonoBehaviour
 
     // RNG araliklari (toplam %100)
     const int AcgozlulukMin = 0;
-    const int AcgozlulukMax = 35;       // %35
-    const int KritikDozMin = 35;
-    const int KritikDozMax = 60;        // %25
-    const int ZehirTaramaMin = 60;
-    const int ZehirTaramaMax = 70;      // %10
-    const int PanzehirTaramaMin = 70;
-    const int PanzehirTaramaMax = 80;   // %10
-    const int GirdapMin = 80;
-    const int GirdapMax = 90;           // %10
-    const int NefeslenmeMin = 90;
-    const int NefeslenmeMax = 95;       // %5
-    const int ZorakiIkramMin = 95;
-    const int ZorakiIkramMax = 100;     // %5
+    const int AcgozlulukMax = 30;       // %30
+    const int KritikDozMin = 30;
+    const int KritikDozMax = 50;        // %20
+    const int ZehirTaramaMin = 50;
+    const int ZehirTaramaMax = 62;      // %12
+    const int PanzehirTaramaMin = 62;
+    const int PanzehirTaramaMax = 74;   // %12
+    const int GirdapMin = 74;
+    const int GirdapMax = 84;           // %10
+    const int NefeslenmeMin = 84;
+    const int NefeslenmeMax = 92;       // %8
+    const int ZorakiIkramMin = 92;
+    const int ZorakiIkramMax = 100;     // %8
 
     public CardType SonCekilenKart { get; private set; }
     public int SonRNGDegeri { get; private set; }

@@ -64,6 +64,7 @@ public class DebugPanel : MonoBehaviour
         }
     }
 
+#if UNITY_EDITOR
     void Update()
     {
         if (WasPressed(konsolaYazdirTusu))
@@ -93,6 +94,7 @@ public class DebugPanel : MonoBehaviour
         if (WasPressed(aktifOyuncuyuIyilestirTusu))
             AktifOyuncuyuIyilestir();
     }
+#endif
 
     bool _referencesResolved;
 
@@ -121,12 +123,14 @@ public class DebugPanel : MonoBehaviour
         _referencesResolved = true;
     }
 
+#if UNITY_EDITOR
     bool WasPressed(Key key)
     {
         return Keyboard.current != null &&
                Keyboard.current[key] != null &&
                Keyboard.current[key].wasPressedThisFrame;
     }
+#endif
 
     #region Veri Toplama
 
@@ -378,6 +382,7 @@ public class DebugPanel : MonoBehaviour
 
     #region Ekran UI
 
+#if UNITY_EDITOR
     void OnGUI()
     {
         CollectCupData();
@@ -417,6 +422,7 @@ public class DebugPanel : MonoBehaviour
         GUILayout.TextArea(BuildEventLogReport(), GUILayout.Height(80));
         GUILayout.EndArea();
     }
+#endif
 
     string BuildEventLogReport()
     {
