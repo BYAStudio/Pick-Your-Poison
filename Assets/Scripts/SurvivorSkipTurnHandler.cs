@@ -123,23 +123,34 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
     {
         if (skipTurnButton != null)
         {
-            skipTurnButton.gameObject.SetActive(true);
-            
-            // Kalan hak 0 mi? Butonu deaktif et
             if (survivor.skipHakki <= 0)
             {
-                skipTurnButton.interactable = false;
+                skipTurnButton.gameObject.SetActive(false);
             }
             else
             {
+                skipTurnButton.gameObject.SetActive(true);
                 skipTurnButton.interactable = true;
+            }
+
+            TMP_Text btnText = skipTurnButton.GetComponentInChildren<TMP_Text>();
+            if (btnText != null)
+            {
+                btnText.text = "Turu Atlama Hakkı";
             }
         }
 
         if (remainingSkipsText != null)
         {
-            remainingSkipsText.gameObject.SetActive(true);
-            KalanHakTextiniGuncelle(survivor.skipHakki);
+            if (survivor.skipHakki <= 0)
+            {
+                remainingSkipsText.gameObject.SetActive(false);
+            }
+            else
+            {
+                remainingSkipsText.gameObject.SetActive(true);
+                KalanHakTextiniGuncelle(survivor.skipHakki);
+            }
         }
     }
 

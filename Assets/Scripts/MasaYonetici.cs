@@ -330,6 +330,20 @@ public class MasaYonetici : MonoBehaviour
 
     #region 2x2 Alan Tarama (Kart Efektleri)
 
+    public int Get2x2TopLeftForCup(int cupIndex)
+    {
+        if (!GecerliIndeks(cupIndex))
+            return 0;
+
+        int col = cupIndex % sutunSayisi;
+        int row = cupIndex / sutunSayisi;
+
+        int topLeftCol = Mathf.Min(col, sutunSayisi - 2);
+        int topLeftRow = Mathf.Min(row, SatirSayisi - 2);
+
+        return topLeftRow * sutunSayisi + topLeftCol;
+    }
+
     public bool IsValid2x2TopLeft(int indeks)
     {
         if (!GecerliIndeks(indeks))

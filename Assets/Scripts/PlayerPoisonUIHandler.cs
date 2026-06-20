@@ -1,231 +1,309 @@
 using UnityEngine;
+using TMPro;
 using System.Collections.Generic;
 
 /// <summary>
-/// Oyuncu panelindeki zehir durumunu ve kalan tur gostergelerini yonetir.
-/// UI tasarimina dokunmaz; sadece durum (state) yonetimi ve UI kontrolu yapar.
-/// 
-/// Mantiksal Akis:
-/// 1. Baslangicta zehir bolumu gizli (deaktif)
-/// 2. Zehir icilince ActivatePoison() cagrilir → UI aktif olur
-/// 3. Her tur DecreasePoisonTurn() cagrilir → Bir yeşil yuvarlak gizlenir
-/// 4. Tum turler bitince zehir bolumu deaktif olur
+/// Oyuncu panellerindeki zehir durumunu, karakter rollerini ve kalan tur göstergelerini (yeşil yuvarlaklar) yönetir.
 /// </summary>
 public class PlayerPoisonUIHandler : MonoBehaviour
 {
-    [Header("UI Elementleri (Mevcut - Sadece Referans)")]
-    [Tooltip("Zehir bolumunu iceren ana panel GameObject'i")]
-    [SerializeField] GameObject poisonSectionPanel;
+    private class PanelRefs
+    {
+        public GameObject panelGo;
+        public TMP_Text nameText;
+        public TMP_Text statusText;
+        public TMP_Text durationText;
+        public List<GameObject> dots;
+        public GameObject buyutecButton;
+    }
 
-    [Tooltip("Kalan tur gostergelerini iceren panel GameObject'i")]
-    [SerializeField] GameObject remainingTurnsPanel;
+    private List<PanelRefs> panels = new List<PanelRefs>();
+    private TurnManager turnManager;
+    private PlayerTurnController playerTurnController;
 
-    [Tooltip("Yesil yuvarlak simgeleri (sirali: son turdan ilk tura)")]
-    [SerializeField] List<GameObject> greenCircleIndicators = new List<GameObject>();
+    private GameObject dedektifBilgiPaneli;
+    private TMP_Text toplamZehirText;
+    private TMP_Text toplamPanzehirText;
+    private GameObject kimyagerAnalizPaneli;
+    private GameObject dedektifSonucPaneli;
 
-    /// <summary>
-    /// Kacin kalan zehir tur sayisini takip eder.
-    /// </summary>
-    int currentPoisonTurnsRemaining = 0;
-
-    /// <summary>
-    /// Zehir UI'inin su an aktif olup olmadiğini takip eder.
-    /// </summary>
-    bool isPoisonUIActive = false;
+    void Awake()
+    {
+        turnManager = FindAnyObjectByType<TurnManager>();
+        playerTurnController = FindAnyObjectByType<PlayerTurnController>();
+    }
 
     void Start()
     {
-        // Baslangic durumunu ayarla: Zehir bolumu varsayilan olarak gizli
-        InitializePoisonUIState();
+        InitializePanels();
+        UpdateAllPanels();
     }
 
-    #region Public API — Disaridan Cagrilmali
-
-    /// <summary>
-    /// Oyuncu zehir ictiginde cagrilmalidir.
-    /// Zehir UI bolumlerini aktif eder ve gosterge sifirlar.
-    /// </summary>
-    /// <param name="totalPoisonTurns">Zehrin toplam etki suresi (tur sayisi)</param>
-    public void ActivatePoison(int totalPoisonTurns)
+    public void InitializePanels()
     {
-        if (totalPoisonTurns <= 0)
+        panels.Clear();
+        GameObject canvasGo = GameObject.Find("Canvas");
+        for (int i = 1; i <= 4; i++)
         {
-            Debug.LogWarning("[PlayerPoisonUI] Gecersiz zehir tur sayisi!");
-            return;
-        }
-
-        currentPoisonTurnsRemaining = totalPoisonTurns;
-        isPoisonUIActive = true;
-
-        // Zehir bolumlerini aktif et
-        PoisonUIBolumleriniAktifEt();
-
-        // Yesil yuvarlak gostergeleri guncelle
-        YesilYuvarlaklariGuncelle();
-
-        Debug.Log($"[PlayerPoisonUI] Zehir aktif edildi. Kalan tur: {currentPoisonTurnsRemaining}");
-    }
-
-    /// <summary>
-    /// Oyuncunun her yeni turu geldiginde cagrilmalidir.
-    /// Bir yesil yuvarlak simgeyi gizler ve zehir tur sayisini azaltir.
-    /// </summary>
-    public void DecreasePoisonTurn()
-    {
-        if (!isPoisonUIActive)
-        {
-            Debug.LogWarning("[PlayerPoisonUI] Zehir UI aktif degil!");
-            return;
-        }
-
-        if (currentPoisonTurnsRemaining <= 0)
-        {
-            Debug.LogWarning("[PlayerPoisonUI] Zehir turu zaten kalmamis!");
-            PoisonUIDevreDisiBirak();
-            return;
-        }
-
-        // Tur sayisini azalt
-        currentPoisonTurnsRemaining--;
-
-        // Bir yesil yuvarlagi gizle
-        BirYesilYuvarlagiGizle();
-
-        Debug.Log($"[PlayerPoisonUI] Zehir turu azaldi. Kalan tur: {currentPoisonTurnsRemaining}");
-
-        // Tum turler bittiyse UI'i kapat
-        if (currentPoisonTurnsRemaining <= 0)
-        {
-            PoisonUIDevreDisiBirak();
-        }
-    }
-
-    /// <summary>
-    /// Zehrin panzehirle tedavi edildiginde cagrilmalidir.
-    /// Zehir UI'ini tamamen kapatir ve durumu sifirlar.
-    /// </summary>
-    public void CurePoison()
-    {
-        currentPoisonTurnsRemaining = 0;
-        isPoisonUIActive = false;
-        PoisonUIDevreDisiBirak();
-        
-        Debug.Log("[PlayerPoisonUI] Zehir tedavi edildi, UI kapatildi.");
-    }
-
-    /// <summary>
-    /// Mevcut kalan zehir tur sayisini dondurur (UI disindaki sistemler icin).
-    /// </summary>
-    public int GetRemainingPoisonTurns()
-    {
-        return currentPoisonTurnsRemaining;
-    }
-
-    /// <summary>
-    /// Zehir UI'inin aktif olup olmadigini kontrol eder.
-    /// </summary>
-    public bool IsPoisonUIActive()
-    {
-        return isPoisonUIActive;
-    }
-
-    #endregion
-
-    #region Yardimci Metodlar
-
-    void InitializePoisonUIState()
-    {
-        // Baslangicta zehir bolumleri gizli olmalidir
-        if (poisonSectionPanel != null)
-        {
-            poisonSectionPanel.SetActive(false);
-        }
-
-        if (remainingTurnsPanel != null)
-        {
-            remainingTurnsPanel.SetActive(false);
-        }
-
-        // Yesil yuvarlaklari sifirla (hepsini gizle)
-        TumYesilYuvarlaklariGizle();
-
-        currentPoisonTurnsRemaining = 0;
-        isPoisonUIActive = false;
-    }
-
-    void PoisonUIBolumleriniAktifEt()
-    {
-        if (poisonSectionPanel != null)
-        {
-            poisonSectionPanel.SetActive(true);
-        }
-
-        if (remainingTurnsPanel != null)
-        {
-            remainingTurnsPanel.SetActive(true);
-        }
-    }
-
-    void PoisonUIDevreDisiBirak()
-    {
-        if (poisonSectionPanel != null)
-        {
-            poisonSectionPanel.SetActive(false);
-        }
-
-        if (remainingTurnsPanel != null)
-        {
-            remainingTurnsPanel.SetActive(false);
-        }
-
-        // Yesil yuvarlaklari sifirla
-        TumYesilYuvarlaklariGizle();
-
-        isPoisonUIActive = false;
-        currentPoisonTurnsRemaining = 0;
-    }
-
-    void YesilYuvarlaklariGuncelle()
-    {
-        // Once tum yuvarlaklari gizle
-        TumYesilYuvarlaklariGizle();
-
-        // Kalan tur sayisi kadar yuvarlagi aktif et
-        // NOT: greenCircleIndicators listesindeki siralamaya gore aktif edilir
-        // Ornek: 3 tur kalsa → son 3 yuvarlak aktif olur
-        int aktifEdilecekSayi = Mathf.Min(currentPoisonTurnsRemaining, greenCircleIndicators.Count);
-
-        // Listenin sonundan basa dogru aktif et (son tur = son yuvarlak)
-        for (int i = 0; i < aktifEdilecekSayi; i++)
-        {
-            int indeks = greenCircleIndicators.Count - 1 - i;
-            if (indeks >= 0 && indeks < greenCircleIndicators.Count)
+            string panelName = $"Oyucu_Panel_{i}";
+            GameObject panelGo = null;
+            if (canvasGo != null)
             {
-                if (greenCircleIndicators[indeks] != null)
+                Transform t = canvasGo.transform.Find(panelName);
+                if (t != null) panelGo = t.gameObject;
+            }
+            if (panelGo == null)
+            {
+                panelGo = GameObject.Find(panelName);
+            }
+
+            if (panelGo != null)
+            {
+                // Enlarge player panels by 25%
+                var rt = panelGo.GetComponent<RectTransform>();
+                if (rt != null)
                 {
-                    greenCircleIndicators[indeks].SetActive(true);
+                    rt.localScale = new Vector3(1.25f, 1.25f, 1.25f);
+                }
+
+                PanelRefs refs = new PanelRefs();
+                refs.panelGo = panelGo;
+                refs.nameText = FindChildText(panelGo, "Oyuncu_Adi_Text");
+                
+                // Enlarge character names and make them bold
+                if (refs.nameText != null)
+                {
+                    if (refs.nameText.fontSize < 28f)
+                    {
+                        refs.nameText.fontSize = 28f;
+                    }
+                    refs.nameText.fontStyle = FontStyles.Bold;
+                }
+
+                refs.statusText = FindChildText(panelGo, "Zehir_Durumu_Text");
+                refs.durationText = FindChildText(panelGo, "Zehir_Suresi_Text");
+                
+                var btnTr = panelGo.transform.Find("Button");
+                if (btnTr != null) refs.buyutecButton = btnTr.gameObject;
+
+                refs.dots = new List<GameObject>();
+                for (int d = 1; d <= 4; d++)
+                {
+                    Transform dotTr = panelGo.transform.Find($"nokta_{d}");
+                    if (dotTr != null)
+                    {
+                        refs.dots.Add(dotTr.gameObject);
+                    }
+                }
+                panels.Add(refs);
+            }
+        }
+
+        if (canvasGo != null)
+        {
+            var dbpTr = canvasGo.transform.Find("Dedektif_Bilgi_Paneli");
+            if (dbpTr != null)
+            {
+                dedektifBilgiPaneli = dbpTr.gameObject;
+                toplamZehirText = dbpTr.Find("Toplam_Zehir_Text")?.GetComponent<TMP_Text>();
+                toplamPanzehirText = dbpTr.Find("Toplam_Panzehir_Text")?.GetComponent<TMP_Text>();
+            }
+
+            var kapTr = canvasGo.transform.Find("Kimyager_Analiz_Paneli");
+            if (kapTr != null) kimyagerAnalizPaneli = kapTr.gameObject;
+
+            var dspTr = canvasGo.transform.Find("Dedektif_Sonuc_Paneli");
+            if (dspTr != null) dedektifSonucPaneli = dspTr.gameObject;
+        }
+    }
+
+    private TMP_Text FindChildText(GameObject parent, string name)
+    {
+        Transform child = parent.transform.Find(name);
+        if (child != null)
+        {
+            return child.GetComponent<TMP_Text>();
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Tüm oyuncuların durumlarına göre panelleri günceller.
+    /// </summary>
+    public void UpdateAllPanels()
+    {
+        if (turnManager == null) turnManager = FindAnyObjectByType<TurnManager>();
+        if (playerTurnController == null) playerTurnController = FindAnyObjectByType<PlayerTurnController>();
+        if (turnManager == null) return;
+        
+        if (panels.Count == 0)
+        {
+            InitializePanels();
+        }
+
+        var players = turnManager.Oyuncular;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (i >= panels.Count) break;
+
+            Player player = players[i];
+            PanelRefs panel = panels[i];
+
+            // Büyüteç butonunun durumunu ayarla (büyüteç kullanılana kadar kimyager/dedektif panelinde olmalı, kullanılırsa deaktif edilmeli)
+            if (panel.buyutecButton != null)
+            {
+                if (i == 0) // Human player panel
+                {
+                    bool isMyTurn = (turnManager.GetActivePlayerID() == 0) && (player.IsAlive);
+                    if (player.characterType == CharacterType.Chemist)
+                    {
+                        panel.buyutecButton.SetActive(true); // Always keep active/visible
+                        var btnComp = panel.buyutecButton.GetComponent<UnityEngine.UI.Button>();
+                        if (btnComp != null) btnComp.interactable = isMyTurn && !player.chemistAbilityUsed; // Deactivate if used
+                    }
+                    else if (player.characterType == CharacterType.Detective)
+                    {
+                        panel.buyutecButton.SetActive(true); // Always keep active/visible
+                        var btnComp = panel.buyutecButton.GetComponent<UnityEngine.UI.Button>();
+                        if (btnComp != null) btnComp.interactable = isMyTurn && !player.detectiveAbilityUsed; // Deactivate if used
+                    }
+                    else
+                    {
+                        panel.buyutecButton.SetActive(false);
+                    }
+                }
+                else
+                {
+                    panel.buyutecButton.SetActive(false);
+                }
+            }
+
+            // 1. Oyuncu Karakter İsmi ve ID Güncellemesi
+            if (panel.nameText != null)
+            {
+                string karakterName = GetKarakterName(player.characterType);
+                panel.nameText.text = karakterName;
+            }
+
+            // 2. Durum ve Yuvarlak (Nokta) Göstergeleri Güncellemesi
+            if (player.currentState == PlayerState.Dead)
+            {
+                if (panel.statusText != null)
+                {
+                    panel.statusText.gameObject.SetActive(true);
+                    panel.statusText.text = "<color=red>ÖLDÜ</color>";
+                }
+                if (panel.durationText != null) 
+                    panel.durationText.gameObject.SetActive(false);
+                
+                // Ölü oyuncuda tüm noktaları gizle
+                foreach (var dot in panel.dots)
+                {
+                    if (dot != null) dot.SetActive(false);
+                }
+            }
+            else if (player.currentState == PlayerState.Poisoned)
+            {
+                if (panel.statusText != null)
+                {
+                    panel.statusText.gameObject.SetActive(false); // Zehir yazısı kaldırılacak
+                }
+                if (panel.durationText != null)
+                {
+                    panel.durationText.gameObject.SetActive(true);
+                    panel.durationText.text = "Kalan Tur";
+                }
+
+                // Doktor için 4, diğerleri için 3 maksimum yuvarlak hakkı
+                int maxDots = player.characterType == CharacterType.Doctor ? 4 : 3;
+
+                // Doktor panelinde nokta_4 yoksa dinamik olarak oluştur
+                if (maxDots == 4 && panel.dots.Count < 4)
+                {
+                    Transform dot4Tr = panel.panelGo.transform.Find("nokta_4");
+                    if (dot4Tr == null)
+                    {
+                        Transform dot3Tr = panel.panelGo.transform.Find("nokta_3");
+                        Transform dot2Tr = panel.panelGo.transform.Find("nokta_2");
+                        if (dot3Tr != null && dot2Tr != null)
+                        {
+                            GameObject dot4Go = Instantiate(dot3Tr.gameObject, panel.panelGo.transform);
+                            dot4Go.name = "nokta_4";
+                            dot4Go.transform.localPosition = new Vector3(130f, -45f, 0f);
+                            panel.dots.Add(dot4Go);
+                        }
+                    }
+                    else if (!panel.dots.Contains(dot4Tr.gameObject))
+                    {
+                        panel.dots.Add(dot4Tr.gameObject);
+                    }
+                }
+
+                // Kalan zehir süresi (timer) kadar yuvarlağı aktif et, kalanını gizle
+                for (int d = 0; d < panel.dots.Count; d++)
+                {
+                    if (panel.dots[d] == null) continue;
+
+                    if (d < maxDots && d < player.poisonedTimer)
+                    {
+                        panel.dots[d].SetActive(true);
+                    }
+                    else
+                    {
+                        panel.dots[d].SetActive(false);
+                    }
+                }
+            }
+            else // Healthy (Sağlıklı)
+            {
+                if (panel.statusText != null) 
+                    panel.statusText.gameObject.SetActive(false);
+                
+                if (panel.durationText != null) 
+                    panel.durationText.gameObject.SetActive(false);
+                
+                // Sağlıklı oyuncuda noktaları tamamen gizle
+                foreach (var dot in panel.dots)
+                {
+                    if (dot != null) dot.SetActive(false);
+                }
+            }
+        }
+
+        // Dedektif_Bilgi_Paneli durumunu güncelle
+        if (dedektifBilgiPaneli != null)
+        {
+            var humanPlayer = turnManager.GetPlayer(0);
+            bool isHumanDetective = (humanPlayer != null && humanPlayer.characterType == CharacterType.Detective && humanPlayer.IsAlive);
+            dedektifBilgiPaneli.SetActive(isHumanDetective);
+            if (isHumanDetective)
+            {
+                if (toplamZehirText != null)
+                    toplamZehirText.text = "Zehir: " + turnManager.GetRemainingPoisonCount();
+                if (toplamPanzehirText != null)
+                    toplamPanzehirText.text = "Panzehir: " + turnManager.GetRemainingAntidoteCount();
+
+                var dbpButtonTr = dedektifBilgiPaneli.transform.Find("Bardaga_Bak");
+                if (dbpButtonTr != null)
+                {
+                    bool isMyTurn = (turnManager.GetActivePlayerID() == 0);
+                    dbpButtonTr.gameObject.SetActive(true); // Always keep active/visible
+                    var btnComp = dbpButtonTr.GetComponent<UnityEngine.UI.Button>();
+                    if (btnComp != null) btnComp.interactable = isMyTurn && !humanPlayer.detectiveAbilityUsed; // Deactivate if used
                 }
             }
         }
     }
 
-    void BirYesilYuvarlagiGizle()
+    private string GetKarakterName(CharacterType type)
     {
-        // Kalan tur sayisina gore en sondan bir yuvarlagi gizle
-        // currentPoisonTurnsRemaining zaten azaltildi, simdi UI'i guncelle
-        YesilYuvarlaklariGuncelle();
-    }
-
-    void TumYesilYuvarlaklariGizle()
-    {
-        for (int i = 0; i < greenCircleIndicators.Count; i++)
+        switch (type)
         {
-            if (greenCircleIndicators[i] != null)
-            {
-                greenCircleIndicators[i].SetActive(false);
-            }
+            case CharacterType.Doctor: return "Doktor";
+            case CharacterType.Survivor: return "Hayatta Kalan";
+            case CharacterType.Chemist: return "Kimyager";
+            case CharacterType.Detective: return "Dedektif";
+            default: return "Oyuncu";
         }
     }
-
-    #endregion
 }

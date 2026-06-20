@@ -19,6 +19,59 @@ public class BotAI : MonoBehaviour
         ResolveReferences();
     }
 
+    private string GetKarakterName(CharacterType type)
+    {
+        switch (type)
+        {
+            case CharacterType.Doctor: return "Doktor";
+            case CharacterType.Survivor: return "Hayatta Kalan";
+            case CharacterType.Chemist: return "Kimyager";
+            case CharacterType.Detective: return "Dedektif";
+            default: return "Bot";
+        }
+    }
+
+    public void StartBotAreaSelection(int botPlayerID, CardType card)
+    {
+        StartCoroutine(BotAreaSelectionCoroutine(botPlayerID, card));
+    }
+
+    private IEnumerator BotAreaSelectionCoroutine(int botPlayerID, CardType card)
+    {
+        ResolveReferences();
+        Player bot = turnManager?.GetPlayer(botPlayerID);
+        if (bot == null || !bot.IsAlive) yield break;
+
+        string charName = GetKarakterName(bot.characterType);
+        playerTurnController.ShowTurnBanner($"{charName} düşünüyor...", 3.5f);
+
+        // Simulating the bot hovering over 2-3 random 2x2 areas
+        int hoverCount = Random.Range(2, 4);
+        for (int h = 0; h < hoverCount; h++)
+        {
+            yield return new WaitForSeconds(0.5f);
+            int randomArea = masaYonetici != null ? masaYonetici.GetRandomValid2x2TopLeftIndex() : 0;
+            if (playerTurnController != null)
+                playerTurnController.Highlight2x2Area(randomArea, true);
+            yield return new WaitForSeconds(0.6f);
+            if (playerTurnController != null)
+                playerTurnController.Highlight2x2Area(randomArea, false);
+        }
+
+        yield return new WaitForSeconds(0.3f);
+
+        int secilenAlan = masaYonetici != null ? masaYonetici.GetRandomValid2x2TopLeftIndex() : 0;
+        
+        // Highlight the final choice
+        if (playerTurnController != null)
+            playerTurnController.Highlight2x2Area(secilenAlan, true);
+        yield return new WaitForSeconds(0.8f);
+        if (playerTurnController != null)
+            playerTurnController.Highlight2x2Area(secilenAlan, false);
+
+        yield return StartCoroutine(playerTurnController.ResolveAreaSelectionCoroutine(botPlayerID, card, secilenAlan));
+    }
+
     // ─────────────────────────────────────────
     //  Ana giriş noktaları
     // ─────────────────────────────────────────
@@ -51,12 +104,68 @@ public class BotAI : MonoBehaviour
         Player bot = turnManager?.GetPlayer(botPlayerID);
         if (bot == null || !bot.IsAlive) yield break;
 
+        // Bot Ability usage
+        if (bot.characterType == CharacterType.Chemist && !bot.chemistAbilityUsed)
+        {
+            if (Random.Range(0, 100) < 30) // 30% chance
+            {
+                bot.chemistAbilityUsed = true;
+                playerTurnController.ShowTurnBanner("Kimyager özel yeteneğini kullandı!", 2.5f);
+                yield return new WaitForSeconds(2.5f);
+            }
+        }
+        else if (bot.characterType == CharacterType.Detective && !bot.detectiveAbilityUsed)
+        {
+            if (Random.Range(0, 100) < 30) // 30% chance
+            {
+                int cupToInspect = masaYonetici != null ? masaYonetici.GetRandomUnconsumedCupIndex() : -1;
+                if (cupToInspect >= 0)
+                {
+                    bot.detectiveAbilityUsed = true;
+                    int row = (cupToInspect / 6) + 1;
+                    int col = (cupToInspect % 6) + 1;
+                    playerTurnController.ShowTurnBanner($"Dedektif {row}. satır {col}. sütundaki bardağı inceledi!", 3.0f);
+                    yield return new WaitForSeconds(3.0f);
+                }
+            }
+        }
+
         if (willDrink)
         {
             int bardak = masaYonetici != null ? masaYonetici.GetRandomUnconsumedCupIndex() : -1;
 
             if (bardak >= 0)
             {
+                string charName = GetKarakterName(bot.characterType);
+                playerTurnController.ShowTurnBanner($"{charName} bardak seçiyor...", 3.5f);
+
+                // Simulate bot "hovering" over 2-3 random cups
+                int hoverCount = Random.Range(2, 4);
+                for (int h = 0; h < hoverCount; h++)
+                {
+                    int randomCup = masaYonetici.GetRandomUnconsumedCupIndex();
+                    if (randomCup >= 0 && randomCup != bardak)
+                    {
+                        var trigger = playerTurnController.GetCupTrigger(randomCup);
+                        if (trigger != null)
+                        {
+                            trigger.HighlightVisual(true);
+                            yield return new WaitForSeconds(0.6f);
+                            trigger.HighlightVisual(false);
+                            yield return new WaitForSeconds(0.2f);
+                        }
+                    }
+                }
+
+                // Highlight the final chosen cup for 0.5s before drinking
+                var finalTrigger = playerTurnController.GetCupTrigger(bardak);
+                if (finalTrigger != null)
+                {
+                    finalTrigger.HighlightVisual(true);
+                    yield return new WaitForSeconds(0.5f);
+                    finalTrigger.HighlightVisual(false);
+                }
+
                 // Tam animasyonlu bardak içme (CupClickTrigger + TuruSonlandir callback ile)
                 playerTurnController.BardakSecVeIc(bardak);
             }
@@ -87,7 +196,12 @@ public class BotAI : MonoBehaviour
         CardType cekilenKart = cardManager.CekKart();
 
         // --- Kartı herkese göster ---
-        CardRevealPanelController reveal = FindAnyObjectByType<CardRevealPanelController>();
+        CardRevealPanelController reveal = playerTurnController != null ? playerTurnController.CardRevealPanel : null;
+        if (reveal == null)
+        {
+            reveal = FindAnyObjectByType<CardRevealPanelController>(FindObjectsInactive.Include);
+        }
+
         if (reveal != null)
         {
             bool revealBitti = false;
@@ -107,6 +221,13 @@ public class BotAI : MonoBehaviour
             int b2 = bardaklar.Length > 1 ? bardaklar[1] : -1;
             playerTurnController.TetikleAcgozlulukCezasi(botPlayerID, b1, b2);
             yield break; // TuruSonlandir coroutine içinde çağrılır
+        }
+
+        // --- Zehir ve Panzehir Tarama ---
+        if (cekilenKart == CardType.PanzehirTarama || cekilenKart == CardType.ZehirTarama)
+        {
+            yield return StartCoroutine(BotAreaSelectionCoroutine(botPlayerID, cekilenKart));
+            yield break;
         }
 
         // --- Diğer kartlar ---
@@ -130,6 +251,8 @@ public class BotAI : MonoBehaviour
             secilenBardak2,
             hedefOyuncuID
         );
+
+        FindAnyObjectByType<PlayerPoisonUIHandler>()?.UpdateAllPanels();
 
         playerTurnController.TuruSonlandir();
     }

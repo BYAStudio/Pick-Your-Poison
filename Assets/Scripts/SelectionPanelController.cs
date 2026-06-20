@@ -66,7 +66,20 @@ public class SelectionPanelController : MonoBehaviour
     /// </summary>
     public void ShowForBot(bool willDrink, float thinkingDelay, System.Action onComplete)
     {
+        gameObject.SetActive(true);
         StartCoroutine(BotSelectionCoroutine(willDrink, thinkingDelay, onComplete));
+    }
+
+    private string GetKarakterName(CharacterType type)
+    {
+        switch (type)
+        {
+            case CharacterType.Doctor: return "Doktor";
+            case CharacterType.Survivor: return "Hayatta Kalan";
+            case CharacterType.Chemist: return "Kimyager";
+            case CharacterType.Detective: return "Dedektif";
+            default: return "Bot";
+        }
     }
 
     private IEnumerator BotSelectionCoroutine(bool willDrink, float thinkingDelay, System.Action onComplete)
@@ -76,9 +89,23 @@ public class SelectionPanelController : MonoBehaviour
         ResetButtonColors();
         gameObject.SetActive(true);
 
-        // "Bot düşünüyor..." etiketi göster
+        string charName = "Bot";
+        if (turnController != null)
+        {
+            var tm = FindAnyObjectByType<TurnManager>();
+            if (tm != null)
+            {
+                var player = tm.GetActivePlayer();
+                if (player != null)
+                {
+                    charName = GetKarakterName(player.characterType);
+                }
+            }
+        }
+
+        // "Karakter düşünüyor..." etiketi göster
         TMP_Text lbl = GetOrCreateBotLabel();
-        lbl.text     = "🤖  Bot düşünüyor...";
+        lbl.text     = $"{charName} düşünüyor...";
         lbl.color    = new Color(1f, 0.9f, 0.3f, 1f);
         SetBotLabelVisible(true);
 
@@ -89,13 +116,13 @@ public class SelectionPanelController : MonoBehaviour
             elapsed += Time.deltaTime;
             // Her 0.6s'de "..." değişimi
             int dots = (int)(elapsed / 0.5f) % 4;
-            lbl.text = "🤖  Bot düşünüyor" + new string('.', dots);
+            lbl.text = $"{charName} düşünüyor" + new string('.', dots);
             yield return null;
         }
 
         // Kararı göster
         string karar = willDrink ? "BARDAK İÇ!" : "KART ÇEK!";
-        lbl.text  = $"🤖  Bot kararı:\n{karar}";
+        lbl.text  = $"{charName} kararı:\n{karar}";
         lbl.color = new Color(1f, 0.5f, 0.2f, 1f);
 
         // Seçilen butonu vurgula (altın sarısı flaş)

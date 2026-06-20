@@ -70,6 +70,15 @@ public class GameSetupManager : MonoBehaviour
         masaYonetici.ResetTable();
         turnManager.StartGame(oyuncuSayisi);
 
+        // Assign characters at the start of setup so they appear on UI panels immediately
+        if (oyuncuKarakterSecimleri != null && oyuncuKarakterSecimleri.Length > 0)
+            KarakterleriAta(oyuncuKarakterSecimleri);
+        else
+            KarakterleriRastgeleAta();
+
+        // Update UI panels to show correct names from setup start
+        FindAnyObjectByType<PlayerPoisonUIHandler>()?.UpdateAllPanels();
+
         // 2. Ilk oyuncu zehir koymaya baslar
         OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
     }
@@ -171,10 +180,8 @@ public class GameSetupManager : MonoBehaviour
 
         CurrentPhase = GamePhase.Playing;
 
-        if (oyuncuKarakterSecimleri != null && oyuncuKarakterSecimleri.Length > 0)
-            KarakterleriAta(oyuncuKarakterSecimleri);
-        else
-            KarakterleriRastgeleAta();
+        // Character assignment is now done in BaslatSetup()
+        FindAnyObjectByType<PlayerPoisonUIHandler>()?.UpdateAllPanels();
 
         // Oyun random bir kisiden baslar
         int randomStartPlayer = UnityEngine.Random.Range(0, oyuncuSayisi);

@@ -338,7 +338,8 @@ public class DebugPanel : MonoBehaviour
             return;
 
         int aktifOyuncuID = turnManager.GetActivePlayerID();
-        botAI.ExecuteBotTurn(aktifOyuncuID);
+        bool willDrink = botAI.DecideBotAction(aktifOyuncuID);
+        botAI.ExecuteBotDecision(aktifOyuncuID, willDrink);
         UpdateDebugInfo();
     }
 

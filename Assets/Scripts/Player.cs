@@ -14,6 +14,7 @@ public class Player
     public PlayerState currentState;
     public int poisonedTimer;
     public CharacterType characterType;
+    public bool poisonedThisTurn;
 
     // Survivor: oyun boyunca 2 kez tur atlayabilir
     public int skipHakki;
@@ -35,6 +36,7 @@ public class Player
         skipHakki = 0;
         chemistAbilityUsed = false;
         detectiveAbilityUsed = false;
+        poisonedThisTurn = false;
     }
 
     public int GetPoisonSurvivalTurns()
@@ -54,6 +56,7 @@ public class Player
         {
             currentState = PlayerState.Poisoned;
             poisonedTimer = turnsToSurvive;
+            poisonedThisTurn = true;
             return;
         }
 
@@ -82,11 +85,13 @@ public class Player
 
         currentState = PlayerState.Healthy;
         poisonedTimer = 0;
+        poisonedThisTurn = false;
     }
 
     public void Die()
     {
         currentState = PlayerState.Dead;
         poisonedTimer = 0;
+        poisonedThisTurn = false;
     }
 }

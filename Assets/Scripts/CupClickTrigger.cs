@@ -42,9 +42,54 @@ public class CupClickTrigger : MonoBehaviour
         }
     }
 
+    public void HighlightVisual(bool highlight)
+    {
+        if (highlight)
+        {
+            transform.localScale = originalScale * 1.1f;
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = new Color(0f, 0.9f, 1f, 1f); // Parlayan turkuaz
+            }
+        }
+        else
+        {
+            transform.localScale = originalScale;
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = originalColor;
+            }
+        }
+    }
+
+    public void SetHighlightedState(bool state)
+    {
+        isHighlighted = state;
+    }
+
     void OnMouseEnter()
     {
         if (isHighlighted) return;
+
+        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
+        if (turnController != null && turnController.AreaSelectionModeActive && turnController.TurAktif)
+        {
+            MasaYonetici masaYonetici = FindAnyObjectByType<MasaYonetici>();
+            if (masaYonetici != null)
+            {
+                int topLeft = masaYonetici.Get2x2TopLeftForCup(cupIndex);
+                int[] indices = masaYonetici.Get2x2Indices(topLeft);
+                foreach (int idx in indices)
+                {
+                    var trigger = turnController.GetCupTrigger(idx);
+                    if (trigger != null && !trigger.isHighlighted)
+                    {
+                        trigger.HighlightVisual(true);
+                    }
+                }
+            }
+            return;
+        }
 
         // 1. Setup asamasindaysek ve sira bizdeyse bardağı parildat
         if (setupManager != null && setupManager.CurrentPhase == GamePhase.Setup && setupManager.MevcutZehirKoyanOyuncuIndeksi == 0)
@@ -62,7 +107,6 @@ public class CupClickTrigger : MonoBehaviour
         }
 
         // 2. Normal oyun sirasindaysak, sira bizdeyse ve secim/gosterim beklemiyorsak parildat
-        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
         TurnManager turnManager = FindAnyObjectByType<TurnManager>();
         if (turnController != null && turnController.TurAktif && !turnController.IsWaitingForActionSelection &&
             (turnController.CardRevealPanel == null || !turnController.CardRevealPanel.gameObject.activeSelf) &&
@@ -83,6 +127,27 @@ public class CupClickTrigger : MonoBehaviour
     void OnMouseExit()
     {
         if (isHighlighted) return;
+
+        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
+        if (turnController != null && turnController.AreaSelectionModeActive && turnController.TurAktif)
+        {
+            MasaYonetici masaYonetici = FindAnyObjectByType<MasaYonetici>();
+            if (masaYonetici != null)
+            {
+                int topLeft = masaYonetici.Get2x2TopLeftForCup(cupIndex);
+                int[] indices = masaYonetici.Get2x2Indices(topLeft);
+                foreach (int idx in indices)
+                {
+                    var trigger = turnController.GetCupTrigger(idx);
+                    if (trigger != null && !trigger.isHighlighted)
+                    {
+                        trigger.HighlightVisual(false);
+                    }
+                }
+            }
+            return;
+        }
+
         ResetToNormal();
     }
 
@@ -124,6 +189,33 @@ public class CupClickTrigger : MonoBehaviour
             return;
         }
 
+        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
+        if (turnController != null && turnController.AreaSelectionModeActive && turnController.TurAktif)
+        {
+            MasaYonetici masaYonetici = FindAnyObjectByType<MasaYonetici>();
+            if (masaYonetici != null)
+            {
+                int topLeft = masaYonetici.Get2x2TopLeftForCup(cupIndex);
+                int[] indices = masaYonetici.Get2x2Indices(topLeft);
+                foreach (int idx in indices)
+                {
+                    var trigger = turnController.GetCupTrigger(idx);
+                    if (trigger != null && !trigger.isHighlighted)
+                    {
+                        trigger.HighlightVisual(false);
+                    }
+                }
+                turnController.OnAreaSelected(topLeft);
+            }
+            return;
+        }
+
+        if (turnController != null && turnController.DetectiveInspectionModeActive && turnController.TurAktif)
+        {
+            turnController.OnDetectiveCupInspected(cupIndex);
+            return;
+        }
+
         // 2. Dedektif bardak secim modundaysa dedektif yetenegini tetikle
         DetectiveCupInspector detectiveInspector = FindAnyObjectByType<DetectiveCupInspector>();
         if (detectiveInspector != null && detectiveInspector.BardakSecimModuAktifMi())
@@ -133,7 +225,6 @@ public class CupClickTrigger : MonoBehaviour
         }
 
         // 3. Normal oyun sirasindaysek bardagi ic
-        PlayerTurnController turnController = FindAnyObjectByType<PlayerTurnController>();
         TurnManager turnManager = FindAnyObjectByType<TurnManager>();
         if (turnController != null && turnController.TurAktif && !turnController.IsWaitingForActionSelection &&
             turnManager != null && turnManager.GetActivePlayerID() == 0)

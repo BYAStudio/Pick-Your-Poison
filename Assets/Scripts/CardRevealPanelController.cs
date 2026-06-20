@@ -60,6 +60,8 @@ public class CardRevealPanelController : MonoBehaviour
         if (descriptionText != null)
         {
             descriptionText.text = GetCardDescription(cardType);
+            descriptionText.color = new Color(descriptionText.color.r, descriptionText.color.g, descriptionText.color.b, 0f);
+            descriptionText.gameObject.SetActive(false); // Hide during shake phase
         }
 
         StartCoroutine(DramaticRevealCoroutine(onComplete));
@@ -116,19 +118,28 @@ public class CardRevealPanelController : MonoBehaviour
         }
         transform.localPosition = originalPos;
 
-        // --- Faz 2: Kart resmi fade-in (0.5s) ---
+        // --- Faz 2: Kart resmi ve açıklama fade-in (0.8s) ---
+        if (descriptionText != null)
+        {
+            descriptionText.gameObject.SetActive(true);
+        }
         elapsed = 0f;
         float revealTime = 0.8f;   // 0.5 → 0.8s
+        Color origTextColor = descriptionText != null ? descriptionText.color : Color.white;
         while (elapsed < revealTime)
         {
             float t = elapsed / revealTime;
             if (cardImage != null)
                 cardImage.color = new Color(1f, 1f, 1f, t);
+            if (descriptionText != null)
+                descriptionText.color = new Color(origTextColor.r, origTextColor.g, origTextColor.b, t);
             elapsed += Time.deltaTime;
             yield return null;
         }
         if (cardImage != null)
             cardImage.color = Color.white;
+        if (descriptionText != null)
+            descriptionText.color = new Color(origTextColor.r, origTextColor.g, origTextColor.b, 1f);
 
         // --- Faz 3: Kart görünür (3 saniye) ---
         yield return new WaitForSeconds(3.0f);  // 2.0 → 3.0s

@@ -20,11 +20,28 @@ public class PlayerTurnController : MonoBehaviour
     [SerializeField] CardType bekleyenKart;
     [SerializeField] bool secimGerektirenKartlariOtomatikCoz = true;
 
+    [Header("Açgözlülük Cezası")]
+    [SerializeField] private bool acgozlulukCezasiAktif = false;
+    [SerializeField] private int acgozlulukKalanBardak = 0;
+
+    [Header("Detective / Chemist / Scan Ability")]
+    [SerializeField] private bool detectiveInspectionModeActive = false;
+    [SerializeField] private bool areaSelectionModeActive = false;
+    [SerializeField] private CardType areaSelectionCard;
+
+    private PlayerPoisonUIHandler uiHandler;
+
     public bool TurAktif => turAktif;
     public bool IsWaitingForActionSelection { get; private set; } = false;
+    public bool AcgozlulukCezasiAktif => acgozlulukCezasiAktif;
     public CardRevealPanelController CardRevealPanel => cardRevealPanelController;
+    public bool DetectiveInspectionModeActive => detectiveInspectionModeActive;
+    public bool AreaSelectionModeActive => areaSelectionModeActive;
+    public CardType AreaSelectionCard => areaSelectionCard;
 
     private Dictionary<int, CupClickTrigger> cupTriggers = new Dictionary<int, CupClickTrigger>();
+    private List<int> chemistHighlightedCups = new List<int>();
+    private List<int> detectiveHighlightedCups = new List<int>();
 
     // Karakter isimlerini Türkçe döndürür
     private static readonly Dictionary<CharacterType, string> KarakterIsimleri = new Dictionary<CharacterType, string>
@@ -39,20 +56,103 @@ public class PlayerTurnController : MonoBehaviour
     void Awake()
     {
         ResolveReferences();
+        
+        // Add UI handler if not present
+        if (FindAnyObjectByType<PlayerPoisonUIHandler>() == null)
+        {
+            gameObject.AddComponent<PlayerPoisonUIHandler>();
+        }
+        uiHandler = FindAnyObjectByType<PlayerPoisonUIHandler>();
+
+        // Add Pause and End GameManager if not present
+        if (FindAnyObjectByType<GameEndAndPauseManager>() == null)
+        {
+            gameObject.AddComponent<GameEndAndPauseManager>();
+        }
+
+        // Ekranın üst kısmındaki "Sira_Text" nesnesini gizle
+        GameObject.Find("Sira_Text")?.SetActive(false);
+        GameObject.Find("Canvas/Sira_Text")?.SetActive(false);
+    }
+
+    void Start()
+    {
+        BindMagnifyingGlassButtons();
+    }
+
+    private void BindMagnifyingGlassButtons()
+    {
+        var canvasGo = GameObject.Find("Canvas");
+        if (canvasGo != null)
+        {
+            // Panel 1 button (human player)
+            var p1Button = canvasGo.transform.Find("Oyucu_Panel_1/Button")?.GetComponent<UnityEngine.UI.Button>();
+            if (p1Button != null)
+            {
+                p1Button.onClick.RemoveAllListeners();
+                p1Button.onClick.AddListener(OnMagnifyingGlassClicked);
+            }
+
+            // Dedektif Bilgi Paneli / Bardaga_Bak button
+            var dbpButton = canvasGo.transform.Find("Dedektif_Bilgi_Paneli/Bardaga_Bak")?.GetComponent<UnityEngine.UI.Button>();
+            if (dbpButton != null)
+            {
+                dbpButton.onClick.RemoveAllListeners();
+                dbpButton.onClick.AddListener(OnMagnifyingGlassClicked);
+            }
+
+            // Kimyager close button
+            var chemistClose = canvasGo.transform.Find("Kimyager_Analiz_Paneli/Kapat_Butonu")?.GetComponent<UnityEngine.UI.Button>();
+            if (chemistClose != null)
+            {
+                chemistClose.onClick.RemoveAllListeners();
+                chemistClose.onClick.AddListener(() => {
+                    var panel = canvasGo.transform.Find("Kimyager_Analiz_Paneli");
+                    if (panel != null) panel.gameObject.SetActive(false);
+                });
+            }
+
+            // Detective close button
+            var detectiveClose = canvasGo.transform.Find("Dedektif_Sonuc_Paneli/Kapat_Butonu")?.GetComponent<UnityEngine.UI.Button>();
+            if (detectiveClose != null)
+            {
+                detectiveClose.onClick.RemoveAllListeners();
+                detectiveClose.onClick.AddListener(() => {
+                    var panel = canvasGo.transform.Find("Dedektif_Sonuc_Paneli");
+                    if (panel != null) panel.gameObject.SetActive(false);
+                });
+            }
+        }
     }
 
     #region Tur Kontrolu
 
     public void YeniTurBasladi()
     {
+        ResetChemistHighlights();
+        ResetDetectiveHighlights();
+
         if (turnManager != null && turnManager.IsGameOver())
         {
             turAktif = false;
             return;
         }
 
+        // Deaktif yetenek panelleri
+        var canvasGo = GameObject.Find("Canvas");
+        if (canvasGo != null)
+        {
+            var chemistPanel = canvasGo.transform.Find("Kimyager_Analiz_Paneli");
+            if (chemistPanel != null) chemistPanel.gameObject.SetActive(false);
+
+            var detectivePanel = canvasGo.transform.Find("Dedektif_Sonuc_Paneli");
+            if (detectivePanel != null) detectivePanel.gameObject.SetActive(false);
+        }
+
         turAktif = true;
         kartSecimiBekleniyor = false;
+
+        if (uiHandler != null) uiHandler.UpdateAllPanels();
 
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnStart);
 
@@ -75,9 +175,9 @@ public class PlayerTurnController : MonoBehaviour
 
         string bannerMetni;
         if (activeID == 0)
-            bannerMetni = $"⚔  Sıra Sende\n{karakter}";
+            bannerMetni = $"[!]  Sıra Sende\n{karakter}";
         else
-            bannerMetni = $"🤖  Sıra:\n{karakter}";
+            bannerMetni = $"Sıra:\n{karakter}";
 
         ShowTurnBanner(bannerMetni, 2.0f);
 
@@ -130,7 +230,7 @@ public class PlayerTurnController : MonoBehaviour
     /// <summary>
     /// Canvas üzerinde geçici bir "sıra banner'ı" oluşturur.
     /// </summary>
-    private void ShowTurnBanner(string text, float duration)
+    public void ShowTurnBanner(string text, float duration)
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
         if (canvas == null) return;
@@ -138,7 +238,7 @@ public class PlayerTurnController : MonoBehaviour
         GameObject bannerGO = new GameObject("TurnBanner");
         bannerGO.transform.SetParent(canvas.transform, false);
         StartingBannerController banner = bannerGO.AddComponent<StartingBannerController>();
-        banner.Initialize(text, duration);
+        banner.Initialize(text, duration, 0.72f, 0.88f);
     }
 
     /// <summary>
@@ -153,11 +253,7 @@ public class PlayerTurnController : MonoBehaviour
             ? isim
             : "Oyuncu";
 
-        if (playerID == 0)
-            return karakterIsmi;
-
-        // Botlar için ek etiket
-        return $"Bot {playerID} ({karakterIsmi})";
+        return karakterIsmi;
     }
 
     public void TuruSonlandir()
@@ -165,14 +261,9 @@ public class PlayerTurnController : MonoBehaviour
         if (!turAktif) return;
         turAktif = false;
 
-        // Ölü oyuncunun turu "EndTurn" ile sonlandirilmamali.
         if (turnManager != null && !turnManager.IsGameOver())
         {
-            Player aktif = turnManager.GetActivePlayer();
-            if (aktif != null && aktif.IsAlive)
-            {
-                turnManager.EndTurn();
-            }
+            turnManager.EndTurn();
         }
 
         // Oyun bitmediyse tur sonlandirma sesi çal ve yeni turu baslat
@@ -262,19 +353,54 @@ public class PlayerTurnController : MonoBehaviour
 
     private void CompleteDrinking(int playerID, CupType icerik)
     {
+        StartCoroutine(CompleteDrinkingCoroutine(playerID, icerik));
+    }
+
+    private IEnumerator CompleteDrinkingCoroutine(int playerID, CupType icerik)
+    {
         Player oyuncu = turnManager.GetPlayer(playerID);
-        if (oyuncu == null || !oyuncu.IsAlive) return;
+        if (oyuncu == null || !oyuncu.IsAlive) yield break;
 
         turnManager.ResolveCupEffect(playerID, icerik);
         PlayDrinkSound(icerik);
 
+        // Update UI panels immediately!
+        if (uiHandler == null) uiHandler = FindAnyObjectByType<PlayerPoisonUIHandler>();
+        if (uiHandler != null) uiHandler.UpdateAllPanels();
+
         if (!oyuncu.IsAlive)
         {
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
+            acgozlulukCezasiAktif = false;
+            acgozlulukKalanBardak = 0;
+            // Wait 2 seconds so we see what residue remains
+            yield return new WaitForSeconds(2.0f);
             TuruSonlandir();
-            return;
+            yield break;
         }
 
+        if (acgozlulukCezasiAktif)
+        {
+            acgozlulukKalanBardak--;
+            if (acgozlulukKalanBardak > 0)
+            {
+                // Wait 2 seconds so we see what residue remains
+                yield return new WaitForSeconds(2.0f);
+                ShowTurnBanner("1 Bardak Daha Seç!", 2.0f);
+                IsWaitingForActionSelection = false; // Allow click
+                yield break;
+            }
+            else
+            {
+                acgozlulukCezasiAktif = false;
+                yield return new WaitForSeconds(2.0f);
+                TuruSonlandir();
+                yield break;
+            }
+        }
+
+        // Wait 2 seconds so we see what residue remains
+        yield return new WaitForSeconds(2.0f);
         TuruSonlandir();
     }
 
@@ -315,23 +441,53 @@ public class PlayerTurnController : MonoBehaviour
 
     private void ApplyCardEffectAndFinish(CardType cekilenKart, int aktifOyuncuID)
     {
-        // Açgözlülük Cezası: animasyonlu 2 bardak içme (coroutine ile)
+        // Açgözlülük Cezası:
         if (cekilenKart == CardType.AcgozlulukCezasi)
         {
-            int[] bardaklar = masaYonetici != null
-                ? masaYonetici.GetRandomDistinctUnconsumedCupIndices(2)
-                : new int[0];
-            int b1 = bardaklar.Length > 0 ? bardaklar[0] : -1;
-            int b2 = bardaklar.Length > 1 ? bardaklar[1] : -1;
-            IsWaitingForActionSelection = true;
-            StartCoroutine(AcgozlulukCezasiAnimasyonlu(aktifOyuncuID, b1, b2));
+            if (aktifOyuncuID == 0) // Human player
+            {
+                acgozlulukCezasiAktif = true;
+                acgozlulukKalanBardak = 2;
+                IsWaitingForActionSelection = false; // Allow cup clicking
+                ShowTurnBanner("AÇGÖZLÜLÜK CEZASI!\nMasadan 2 bardak seçip iç!", 3.0f);
+            }
+            else // Bot player
+            {
+                int[] bardaklar = masaYonetici != null
+                    ? masaYonetici.GetRandomDistinctUnconsumedCupIndices(2)
+                    : new int[0];
+                int b1 = bardaklar.Length > 0 ? bardaklar[0] : -1;
+                int b2 = bardaklar.Length > 1 ? bardaklar[1] : -1;
+                IsWaitingForActionSelection = true;
+                StartCoroutine(AcgozlulukCezasiAnimasyonlu(aktifOyuncuID, b1, b2));
+            }
+            return;
+        }
+
+        // Zehir ve Panzehir Tarama (2x2 Alan Secimi)
+        if (cekilenKart == CardType.PanzehirTarama || cekilenKart == CardType.ZehirTarama)
+        {
+            if (aktifOyuncuID == 0) // Human player
+            {
+                areaSelectionModeActive = true;
+                areaSelectionCard = cekilenKart;
+                IsWaitingForActionSelection = false; // Allow cup clicking
+                string kartIsmi = (cekilenKart == CardType.PanzehirTarama) ? "PANZEHİR TARAMA" : "ZEHİR TARAMA";
+                ShowTurnBanner($"{kartIsmi}!\nTarayacağın 2x2 alanı seçmek için bir bardağın üzerine gel ve tıkla!", 4.0f);
+            }
+            else // Bot player
+            {
+                BotAI botAI = FindAnyObjectByType<BotAI>();
+                if (botAI != null)
+                {
+                    botAI.StartBotAreaSelection(aktifOyuncuID, cekilenKart);
+                }
+            }
             return;
         }
 
         // Hedef/Secim GEREKTIREN diger kartlar
-        if (cekilenKart == CardType.ZehirTarama ||
-            cekilenKart == CardType.PanzehirTarama ||
-            cekilenKart == CardType.ZorakiIkram)
+        if (cekilenKart == CardType.ZorakiIkram)
         {
             if (secimGerektirenKartlariOtomatikCoz)
             {
@@ -381,10 +537,13 @@ public class PlayerTurnController : MonoBehaviour
             turnManager.ResolveCupEffect(oyuncuID, tip1);
             PlayDrinkSound(tip1);
 
+            if (uiHandler != null) uiHandler.UpdateAllPanels();
+
             if (!turnManager.IsPlayerAlive(oyuncuID))
             {
                 AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
                 IsWaitingForActionSelection = false;
+                yield return new WaitForSeconds(2.0f); // Wait 2s to see puddle/residue
                 TuruSonlandir();
                 yield break;
             }
@@ -408,11 +567,14 @@ public class PlayerTurnController : MonoBehaviour
             turnManager.ResolveCupEffect(oyuncuID, tip2);
             PlayDrinkSound(tip2);
 
+            if (uiHandler != null) uiHandler.UpdateAllPanels();
+
             if (!turnManager.IsPlayerAlive(oyuncuID))
                 AudioManager.Instance?.PlaySFX(AudioManager.SFX.PlayerDeath);
         }
 
         IsWaitingForActionSelection = false;
+        yield return new WaitForSeconds(2.0f); // Wait 2s to see puddle/residue
         TuruSonlandir();
     }
 
@@ -637,6 +799,204 @@ public class PlayerTurnController : MonoBehaviour
             return -1;
 
         return hedefler[Random.Range(0, hedefler.Count)];
+    }
+
+    public CupClickTrigger GetCupTrigger(int index)
+    {
+        if (cupTriggers.TryGetValue(index, out var trigger))
+            return trigger;
+        return null;
+    }
+
+    public void OnAreaSelected(int topLeftIndex)
+    {
+        if (!areaSelectionModeActive) return;
+        areaSelectionModeActive = false;
+
+        StartCoroutine(ResolveAreaSelectionCoroutine(0, areaSelectionCard, topLeftIndex));
+    }
+
+    public IEnumerator ResolveAreaSelectionCoroutine(int playerID, CardType card, int topLeftIndex)
+    {
+        string cardName = card == CardType.PanzehirTarama ? "PANZEHİR" : "ZEHİR";
+        CupType targetType = card == CardType.PanzehirTarama ? CupType.ANTIDOTE : CupType.POISON;
+
+        int count = masaYonetici.Count2x2Area(topLeftIndex, targetType, unconsumedOnly: true);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ScanReveal);
+
+        // Convert index to row and column
+        int row = (topLeftIndex / 6) + 1;
+        int col = (topLeftIndex % 6) + 1;
+
+        Player p = turnManager.GetPlayer(playerID);
+        string name = p.characterType == CharacterType.Doctor ? "Doktor" : p.characterType == CharacterType.Survivor ? "Hayatta Kalan" : p.characterType == CharacterType.Chemist ? "Kimyager" : p.characterType == CharacterType.Detective ? "Dedektif" : "Oyuncu";
+
+        // Highlight the scanned area during the result display
+        Highlight2x2Area(topLeftIndex, true);
+
+        // "Çıkan sonucu tüm oyuncular görebilmeli."
+        string text = $"{cardName} TARAMA SONUCU\n{name} {row}. satır {col}. sütun etrafını taradı:\nSeçilen 2x2 alanda {count} tane {cardName.ToLower()} var!";
+        ShowTurnBanner(text, 4.0f);
+
+        yield return new WaitForSeconds(4.0f);
+
+        Highlight2x2Area(topLeftIndex, false);
+
+        TuruSonlandir();
+    }
+
+    private void OnMagnifyingGlassClicked()
+    {
+        Player activePlayer = turnManager.GetActivePlayer();
+        if (activePlayer == null || activePlayer.playerID != 0) return;
+
+        if (activePlayer.characterType == CharacterType.Chemist)
+        {
+            if (activePlayer.chemistAbilityUsed) return;
+            
+            int zehirIndeksi, panzehirIndeksi;
+            if (KimyagerYetenegiKullan(out zehirIndeksi, out panzehirIndeksi))
+            {
+                var canvasGo = GameObject.Find("Canvas");
+                var panel = canvasGo.transform.Find("Kimyager_Analiz_Paneli");
+                if (panel != null)
+                {
+                    panel.gameObject.SetActive(true);
+                    var zText = panel.Find("Zehir_Yeri")?.GetComponent<TMPro.TextMeshProUGUI>();
+                    var pText = panel.Find("Panzehir_Yeri")?.GetComponent<TMPro.TextMeshProUGUI>();
+
+                    int zRow = (zehirIndeksi / 6) + 1;
+                    int zCol = (zehirIndeksi % 6) + 1;
+                    int pRow = (panzehirIndeksi / 6) + 1;
+                    int pCol = (panzehirIndeksi % 6) + 1;
+
+                    if (zText != null)
+                        zText.text = zehirIndeksi >= 0 ? $"Zehir Yeri: {zRow}. satır {zCol}. sütun" : "Zehir Yeri: Yok";
+                    if (pText != null)
+                        pText.text = panzehirIndeksi >= 0 ? $"Panzehir Yeri: {pRow}. satır {pCol}. sütun" : "Panzehir Yeri: Yok";
+                }
+
+                chemistHighlightedCups.Clear();
+                if (zehirIndeksi >= 0)
+                {
+                    var trigger = GetCupTrigger(zehirIndeksi);
+                    if (trigger != null)
+                    {
+                        trigger.HighlightVisual(true);
+                        trigger.SetHighlightedState(true);
+                        var sr = trigger.GetComponent<SpriteRenderer>();
+                        if (sr != null) sr.color = new Color(0.2f, 1f, 0.2f, 1f); // Parlayan yeşil (Zehir)
+                        chemistHighlightedCups.Add(zehirIndeksi);
+                    }
+                }
+                if (panzehirIndeksi >= 0)
+                {
+                    var trigger = GetCupTrigger(panzehirIndeksi);
+                    if (trigger != null)
+                    {
+                        trigger.HighlightVisual(true);
+                        trigger.SetHighlightedState(true);
+                        var sr = trigger.GetComponent<SpriteRenderer>();
+                        if (sr != null) sr.color = new Color(1f, 1f, 1f, 1f); // Parlayan beyaz (Panzehir)
+                        chemistHighlightedCups.Add(panzehirIndeksi);
+                    }
+                }
+
+                ShowTurnBanner("Kimyager Özelliğini Kullandı!", 3.0f);
+                uiHandler?.UpdateAllPanels();
+            }
+        }
+        else if (activePlayer.characterType == CharacterType.Detective)
+        {
+            if (activePlayer.detectiveAbilityUsed) return;
+
+            detectiveInspectionModeActive = true;
+            ShowTurnBanner("Dedektif Büyütecini Kullandı!\nİncelemek istediğin 1 bardağa tıkla!", 3.0f);
+            uiHandler?.UpdateAllPanels();
+        }
+    }
+
+    public void OnDetectiveCupInspected(int cupIndex)
+    {
+        if (!detectiveInspectionModeActive) return;
+        detectiveInspectionModeActive = false;
+
+        CupType content;
+        if (DedektifYetenegiKullan(cupIndex, out content))
+        {
+            // Highlight the inspected cup until the detective ends their turn
+            var trigger = GetCupTrigger(cupIndex);
+            if (trigger != null)
+            {
+                trigger.HighlightVisual(true);
+                trigger.SetHighlightedState(true);
+                var sr = trigger.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    sr.color = new Color(1f, 0.85f, 0.1f, 1f); // Glowing gold/yellow for Detective
+                }
+                detectiveHighlightedCups.Add(cupIndex);
+            }
+
+            int row = (cupIndex / 6) + 1;
+            int col = (cupIndex % 6) + 1;
+
+            var canvasGo = GameObject.Find("Canvas");
+            var panel = canvasGo.transform.Find("Dedektif_Sonuc_Paneli");
+            if (panel != null)
+            {
+                panel.gameObject.SetActive(true);
+                var text = panel.Find("Sonuc_Yazisi")?.GetComponent<TMPro.TextMeshProUGUI>();
+                if (text != null)
+                {
+                    string contentStr = content == CupType.POISON ? "<color=red>☠ ZEHİR</color>" : content == CupType.ANTIDOTE ? "<color=green>✓ Panzehir</color>" : "○ Boş";
+                    text.text = $"{row}. satır {col}. sütundaki bardak içeriği:\n{contentStr}";
+                }
+            }
+
+            ShowTurnBanner($"Dedektif {row}. satır {col}. sütundaki bardağı inceledi!", 3.0f);
+            uiHandler?.UpdateAllPanels();
+        }
+    }
+
+    public void Highlight2x2Area(int topLeftIndex, bool highlight)
+    {
+        if (masaYonetici == null) return;
+        int[] indices = masaYonetici.Get2x2Indices(topLeftIndex);
+        foreach (int idx in indices)
+        {
+            var trigger = GetCupTrigger(idx);
+            if (trigger != null)
+            {
+                trigger.HighlightVisual(highlight);
+            }
+        }
+    }
+
+    private void ResetChemistHighlights()
+    {
+        foreach (int idx in chemistHighlightedCups)
+        {
+            var trigger = GetCupTrigger(idx);
+            if (trigger != null)
+            {
+                trigger.ResetVisualState();
+            }
+        }
+        chemistHighlightedCups.Clear();
+    }
+
+    private void ResetDetectiveHighlights()
+    {
+        foreach (int idx in detectiveHighlightedCups)
+        {
+            var trigger = GetCupTrigger(idx);
+            if (trigger != null)
+            {
+                trigger.ResetVisualState();
+            }
+        }
+        detectiveHighlightedCups.Clear();
     }
 
     #endregion

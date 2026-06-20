@@ -292,6 +292,12 @@ public class TurnManager : MonoBehaviour
         if (aktif == null || aktif.currentState != PlayerState.Poisoned)
             return;
 
+        if (aktif.poisonedThisTurn)
+        {
+            aktif.poisonedThisTurn = false;
+            return;
+        }
+
         aktif.TickPoisonedTimer();
 
         if (!aktif.IsAlive)
