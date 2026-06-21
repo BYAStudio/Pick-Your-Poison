@@ -144,7 +144,16 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
             TMP_Text btnText = skipTurnButton.GetComponentInChildren<TMP_Text>();
             if (btnText != null)
             {
-                btnText.text = "Hayatta Kalan Turu Atlama Hakkı";
+                btnText.text = "Turu Atla";
+            }
+
+            var rt = skipTurnButton.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.anchorMin = new Vector2(0.5f, 0.5f);
+                rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = new Vector2(0f, -320f);
             }
         }
 
@@ -158,6 +167,15 @@ public class SurvivorSkipTurnHandler : MonoBehaviour
             {
                 remainingSkipsText.gameObject.SetActive(true);
                 KalanHakTextiniGuncelle(survivor.skipHakki);
+            }
+
+            var rtText = remainingSkipsText.GetComponent<RectTransform>();
+            if (rtText != null)
+            {
+                rtText.anchorMin = new Vector2(0.5f, 0.5f);
+                rtText.anchorMax = new Vector2(0.5f, 0.5f);
+                rtText.pivot = new Vector2(0.5f, 0.5f);
+                rtText.anchoredPosition = new Vector2(0f, -390f);
             }
         }
     }

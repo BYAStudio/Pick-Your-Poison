@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
 
 /// <summary>
 /// Oyuncuya "Bardak İç / Kart Seç" seçeneğini sunar.
@@ -36,6 +37,29 @@ public class SelectionPanelController : MonoBehaviour
             var img = drinkButton.GetComponent<Image>();
             if (img != null) drinkBtnOriginalColor = img.color;
         }
+    }
+
+    void Start()
+    {
+        AddHoverSound(drinkButton, AudioManager.SFX.BardakSecme);
+        AddHoverSound(drawCardButton, AudioManager.SFX.KartSecim);
+    }
+
+    private void AddHoverSound(Button button, AudioManager.SFX sfxType)
+    {
+        if (button == null) return;
+        EventTrigger trigger = button.gameObject.GetComponent<EventTrigger>();
+        if (trigger == null) trigger = button.gameObject.AddComponent<EventTrigger>();
+        
+        EventTrigger.Entry entry = new EventTrigger.Entry();
+        entry.eventID = EventTriggerType.PointerEnter;
+        entry.callback.AddListener((data) => {
+            if (button.interactable)
+            {
+                AudioManager.Instance?.PlaySFX(sfxType);
+            }
+        });
+        trigger.triggers.Add(entry);
     }
 
     // ─────────────────────────────────────────
@@ -125,6 +149,9 @@ public class SelectionPanelController : MonoBehaviour
         lbl.text  = $"{charName} kararı:\n{karar}";
         lbl.color = new Color(1f, 0.5f, 0.2f, 1f);
 
+        // Play the decision sound
+        AudioManager.Instance?.PlaySFX(willDrink ? AudioManager.SFX.BardakSecme : AudioManager.SFX.KartSecim);
+
         // Seçilen butonu vurgula (altın sarısı flaş)
         Button chosenBtn    = willDrink ? drinkButton    : drawCardButton;
         Button notChosenBtn = willDrink ? drawCardButton : drinkButton;
@@ -158,7 +185,7 @@ public class SelectionPanelController : MonoBehaviour
 
     private void OnDrawCardClicked()
     {
-        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.CardOpening);
         HidePanel();
         if (turnController != null)
             turnController.OnDrawCardSelected();

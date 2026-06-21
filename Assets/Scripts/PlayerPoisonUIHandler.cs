@@ -150,25 +150,16 @@ public class PlayerPoisonUIHandler : MonoBehaviour
             // Büyüteç butonunun durumunu ayarla (büyüteç kullanılana kadar kimyager/dedektif panelinde olmalı, kullanılırsa deaktif edilmeli)
             if (panel.buyutecButton != null)
             {
-                if (i == 0) // Human player panel
+                bool isMyTurn = (turnManager.GetActivePlayerID() == 0) && (player.IsAlive);
+                bool isHuman = (i == 0);
+
+                if (player.characterType == CharacterType.Chemist)
                 {
-                    bool isMyTurn = (turnManager.GetActivePlayerID() == 0) && (player.IsAlive);
-                    if (player.characterType == CharacterType.Chemist)
-                    {
-                        panel.buyutecButton.SetActive(true); // Always keep active/visible
-                        var btnComp = panel.buyutecButton.GetComponent<UnityEngine.UI.Button>();
-                        if (btnComp != null) btnComp.interactable = isMyTurn && !player.chemistAbilityUsed; // Deactivate if used
-                    }
-                    else if (player.characterType == CharacterType.Detective)
-                    {
-                        panel.buyutecButton.SetActive(true); // Always keep active/visible
-                        var btnComp = panel.buyutecButton.GetComponent<UnityEngine.UI.Button>();
-                        if (btnComp != null) btnComp.interactable = isMyTurn && !player.detectiveAbilityUsed; // Deactivate if used
-                    }
-                    else
-                    {
-                        panel.buyutecButton.SetActive(false);
-                    }
+                    ConfigureBuyutecButton(panel.buyutecButton, player.chemistAbilityUsed, isHuman, isMyTurn);
+                }
+                else if (player.characterType == CharacterType.Detective)
+                {
+                    ConfigureBuyutecButton(panel.buyutecButton, player.detectiveAbilityUsed, isHuman, isMyTurn);
                 }
                 else
                 {
@@ -296,9 +287,7 @@ public class PlayerPoisonUIHandler : MonoBehaviour
                 if (dbpButtonTr != null)
                 {
                     bool isMyTurn = (turnManager.GetActivePlayerID() == 0);
-                    dbpButtonTr.gameObject.SetActive(true); // Always keep active/visible
-                    var btnComp = dbpButtonTr.GetComponent<UnityEngine.UI.Button>();
-                    if (btnComp != null) btnComp.interactable = isMyTurn && !humanPlayer.detectiveAbilityUsed; // Deactivate if used
+                    ConfigureBuyutecButton(dbpButtonTr.gameObject, humanPlayer.detectiveAbilityUsed, true, isMyTurn);
                 }
             }
         }
@@ -313,6 +302,45 @@ public class PlayerPoisonUIHandler : MonoBehaviour
             case CharacterType.Chemist: return "Kimyager";
             case CharacterType.Detective: return "Dedektif";
             default: return "Oyuncu";
+        }
+    }
+
+    private void ConfigureBuyutecButton(GameObject buttonGo, bool abilityUsed, bool isHuman, bool isMyTurn)
+    {
+        if (buttonGo == null) return;
+
+        buttonGo.SetActive(!abilityUsed);
+        if (abilityUsed) return;
+
+        // Make it 30% larger to be more visible
+        buttonGo.transform.localScale = new Vector3(1.3f, 1.3f, 1.3f);
+
+        var btnComp = buttonGo.GetComponent<UnityEngine.UI.Button>();
+        var img = buttonGo.GetComponent<UnityEngine.UI.Image>();
+
+        if (btnComp != null)
+        {
+            if (isHuman)
+            {
+                btnComp.enabled = true;
+                btnComp.interactable = isMyTurn;
+            }
+            else
+            {
+                btnComp.enabled = false; // Disable button component for bots so it doesn't dim
+            }
+        }
+
+        if (img != null)
+        {
+            if (isHuman && isMyTurn)
+            {
+                img.color = new Color(0f, 1f, 0.8f, 1f); // Cyan glow for human player's active turn
+            }
+            else
+            {
+                img.color = Color.white; // Bright white for bots/inactive states
+            }
         }
     }
 }

@@ -11,6 +11,8 @@ public class MainMenuController : MonoBehaviour
 
     void Start()
     {
+        AudioManager.Instance?.PlayMainMenuMusic();
+
         // Dynamically create an Exit Button based on the Play Button
         Transform playBtnTr = transform.Find("PlayButton");
         if (playBtnTr == null)
@@ -64,6 +66,12 @@ public class MainMenuController : MonoBehaviour
             return;
         }
 
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.StopMusic();
+            AudioManager.Instance.PlaySFX(AudioManager.SFX.StartGame);
+        }
+
         Debug.Log($"[MainMenuController] Karakter seçme sahnesi yükleniyor: {characterSelectionSceneName}");
         SceneManager.LoadScene(characterSelectionSceneName);
     }
@@ -74,6 +82,7 @@ public class MainMenuController : MonoBehaviour
     public void QuitGame()
     {
         Debug.Log("[MainMenuController] Çıkış yapılıyor...");
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else

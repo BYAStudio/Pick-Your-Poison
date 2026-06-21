@@ -38,6 +38,27 @@ public class CardRevealPanelController : MonoBehaviour
     {
         gameObject.SetActive(true);
 
+        float openingLength = 0.8f; // Default fallback
+        float waitingLength = 2.0f; // Default fallback
+
+        if (AudioManager.Instance != null)
+        {
+            AudioClip openingClip = AudioManager.Instance.GetClip(AudioManager.SFX.CardOpening);
+            if (openingClip != null)
+            {
+                openingLength = openingClip.length;
+            }
+
+            AudioClip waitingClip = AudioManager.Instance.GetClip(AudioManager.SFX.CardWaiting);
+            if (waitingClip != null)
+            {
+                waitingLength = waitingClip.length;
+            }
+        }
+
+        // Total shake duration is opening length + waiting length
+        float totalShakeDuration = openingLength + waitingLength;
+
         int index = (int)cardType;
 
         // Kart resmini ata ama önce gizle (dramatik reveal için)
@@ -64,7 +85,7 @@ public class CardRevealPanelController : MonoBehaviour
             descriptionText.gameObject.SetActive(false); // Hide during shake phase
         }
 
-        StartCoroutine(DramaticRevealCoroutine(onComplete));
+        StartCoroutine(DramaticRevealCoroutine(cardType, totalShakeDuration, openingLength, onComplete));
     }
 
     private string GetCardDescription(CardType cardType)
@@ -78,7 +99,7 @@ public class CardRevealPanelController : MonoBehaviour
             case CardType.ZehirTarama:
                 return "ZEHİR TARAMA\n\nSeçtiğin 2x2 alandaki zehir sayısını herkes görür!";
             case CardType.PanzehirTarama:
-                return "PANZEHİR TARAMA\n\nSeçtiğin 2x2 alandaki panzehir sayısını sadece sen görürsün!";
+                return "PANZEHİR TARAMA\n\nSeçtiğin 2x2 alandaki panzehir sayısını herkes görür!";
             case CardType.Girdap:
                 return "GİRDAP\n\nTur sırasının yönü tersine döndü!";
             case CardType.Nefeslenme:
@@ -97,13 +118,15 @@ public class CardRevealPanelController : MonoBehaviour
     /// Faz 3 (2s): Kart görünür kalır.
     /// Faz 4: Panel kapanır, callback çağrılır.
     /// </summary>
-    private IEnumerator DramaticRevealCoroutine(System.Action onComplete)
+    private IEnumerator DramaticRevealCoroutine(CardType cardType, float shakeDuration, float waitDelay, System.Action onComplete)
     {
         Vector3 originalPos = transform.localPosition;
 
-        // --- Faz 1: Titreme (2 saniye) ---
+        // Play card waiting sound after opening sound completes
+        StartCoroutine(PlayCardWaitingDelayed(waitDelay));
+
+        // --- Faz 1: Titreme ---
         float elapsed = 0f;
-        float shakeDuration = 3.0f;  // 2.0 → 3.0s
 
         while (elapsed < shakeDuration)
         {
@@ -117,6 +140,9 @@ public class CardRevealPanelController : MonoBehaviour
             yield return null;
         }
         transform.localPosition = originalPos;
+
+        // Play card reveal sound immediately after shake finishes (when card appears on screen)
+        PlayCardRevealSound(cardType);
 
         // --- Faz 2: Kart resmi ve açıklama fade-in (0.8s) ---
         if (descriptionText != null)
@@ -147,5 +173,27 @@ public class CardRevealPanelController : MonoBehaviour
         // Kapat
         gameObject.SetActive(false);
         onComplete?.Invoke();
+    }
+
+    private void PlayCardRevealSound(CardType cardType)
+    {
+        if (cardType == CardType.AcgozlulukCezasi || cardType == CardType.KritikDoz)
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.NegativeCard);
+        }
+        else if (cardType == CardType.Nefeslenme || cardType == CardType.ZorakiIkram)
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.PositiveCard);
+        }
+        else // ZehirTarama, PanzehirTarama, Girdap
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.NotrCard);
+        }
+    }
+
+    private IEnumerator PlayCardWaitingDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.CardWaiting);
     }
 }

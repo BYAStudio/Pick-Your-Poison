@@ -30,6 +30,15 @@ public class PlayerTurnController : MonoBehaviour
     [SerializeField] private CardType areaSelectionCard;
 
     private PlayerPoisonUIHandler uiHandler;
+    private SurvivorSkipTurnHandler survivorSkipTurnHandler;
+    private SurvivorSkipTurnHandler GetSurvivorSkipTurnHandler()
+    {
+        if (survivorSkipTurnHandler == null)
+        {
+            survivorSkipTurnHandler = FindAnyObjectByType<SurvivorSkipTurnHandler>(FindObjectsInactive.Include);
+        }
+        return survivorSkipTurnHandler;
+    }
 
     private bool isChoosingDrinkCup = false;
     public bool IsChoosingDrinkCup => isChoosingDrinkCup;
@@ -164,7 +173,7 @@ public class PlayerTurnController : MonoBehaviour
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.TurnStart);
 
         // Survivor sira atlama UI'ini guncelle
-        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+        GetSurvivorSkipTurnHandler()?.UIElementleriniGuncelle();
 
         // Tur başlangıç banner'ını göster, sonra aksiyonu başlat
         StartCoroutine(TurnBannerVeBaslat());
@@ -238,7 +247,7 @@ public class PlayerTurnController : MonoBehaviour
             if (panel != null)
                 panel.ShowPanel();
 
-            FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+            GetSurvivorSkipTurnHandler()?.UIElementleriniGuncelle();
         }
     }
 
@@ -297,13 +306,13 @@ public class PlayerTurnController : MonoBehaviour
     {
         IsWaitingForActionSelection = false;
         isChoosingDrinkCup = true;
-        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+        GetSurvivorSkipTurnHandler()?.UIElementleriniGuncelle();
     }
 
     public void OnDrawCardSelected()
     {
         IsWaitingForActionSelection = false;
-        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+        GetSurvivorSkipTurnHandler()?.UIElementleriniGuncelle();
         KartCekVeSiraSav();
     }
 
@@ -341,6 +350,9 @@ public class PlayerTurnController : MonoBehaviour
             return;
         }
 
+        // Play cup selection sound when a cup is clicked/selected
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.BardakSecme);
+
         int targetPlayerID = aktifOyuncu.playerID;
         if (isChoosingZorakiCup)
         {
@@ -348,7 +360,7 @@ public class PlayerTurnController : MonoBehaviour
             isChoosingZorakiCup = false;
         }
         isChoosingDrinkCup = false;
-        FindAnyObjectByType<SurvivorSkipTurnHandler>()?.UIElementleriniGuncelle();
+        GetSurvivorSkipTurnHandler()?.UIElementleriniGuncelle();
 
         CupType icerik = masaYonetici.ConsumeCupForPlayer(bardakIndeksi, targetPlayerID);
 
@@ -815,11 +827,19 @@ public class PlayerTurnController : MonoBehaviour
     private void PlayDrinkSound(CupType tip)
     {
         if (tip == CupType.POISON)
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.Poison);
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.PoisonDrink);
+        }
         else if (tip == CupType.ANTIDOTE)
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.Antidote);
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.AntidoteDrink);
+        }
         else
+        {
             AudioManager.Instance?.PlaySFX(AudioManager.SFX.CupDrink);
+        }
     }
 
     int RastgeleHayattaOlanHedefSec(int haricOyuncuID)
@@ -855,6 +875,9 @@ public class PlayerTurnController : MonoBehaviour
     {
         if (!areaSelectionModeActive) return;
         areaSelectionModeActive = false;
+
+        // Play cup selection sound
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.BardakSecme);
 
         StartCoroutine(ResolveAreaSelectionCoroutine(0, areaSelectionCard, topLeftIndex));
     }
@@ -967,6 +990,9 @@ public class PlayerTurnController : MonoBehaviour
         CupType content;
         if (DedektifYetenegiKullan(cupIndex, out content))
         {
+            // Play cup selection sound
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.BardakSecme);
+
             // Highlight the inspected cup until the detective ends their turn
             var trigger = GetCupTrigger(cupIndex);
             if (trigger != null)
@@ -1044,13 +1070,15 @@ public class PlayerTurnController : MonoBehaviour
 
     private void ShowZorakiIkramPanel()
     {
-        Canvas canvas = FindAnyObjectByType<Canvas>();
-        if (canvas == null) return;
+        IsWaitingForActionSelection = true; // Block clicking cups on table while panel is open
+
+        GameObject canvasGo = GameObject.Find("Canvas");
+        if (canvasGo == null) return;
 
         if (zorakiPanelGo != null) Destroy(zorakiPanelGo);
 
         zorakiPanelGo = new GameObject("ZorakiIkramPanel");
-        zorakiPanelGo.transform.SetParent(canvas.transform, false);
+        zorakiPanelGo.transform.SetParent(canvasGo.transform, false);
 
         var bgImage = zorakiPanelGo.AddComponent<UnityEngine.UI.Image>();
         bgImage.color = new Color(0.02f, 0.02f, 0.04f, 0.85f);
@@ -1105,17 +1133,22 @@ public class PlayerTurnController : MonoBehaviour
         qRt.sizeDelta = new Vector2(-40f, 60f);
 
         var qTmp = questionGo.AddComponent<TMPro.TextMeshProUGUI>();
-        qTmp.text = "Hangi oyuncuya içecek içirmek istersin?";
+        qTmp.text = "Hangi karakteri seçiyorsunuz?";
         qTmp.fontSize = 18f;
         qTmp.alignment = TMPro.TextAlignmentOptions.Center;
         qTmp.color = Color.white;
         qTmp.enableWordWrapping = true;
 
+        int activePlayerID = turnManager != null ? turnManager.GetActivePlayerID() : 0;
+        int totalPlayers = turnManager != null ? turnManager.GetTotalPlayerCount() : 4;
+
         float yPos = -140f;
-        for (int i = 1; i <= 3; i++)
+        for (int i = 0; i < totalPlayers; i++)
         {
+            if (i == activePlayerID) continue; // Kendisi hariç diğer karakterler
+
             int targetID = i;
-            Player p = turnManager.GetPlayer(targetID);
+            Player p = turnManager != null ? turnManager.GetPlayer(targetID) : null;
             if (p == null) continue;
 
             string name = GetPlayerDisplayName(targetID);
@@ -1159,6 +1192,7 @@ public class PlayerTurnController : MonoBehaviour
             tmp.fontStyle = TMPro.FontStyles.Bold;
             tmp.alignment = TMPro.TextAlignmentOptions.Center;
             tmp.color = isAlive ? Color.white : new Color(0.6f, 0.6f, 0.6f, 0.5f);
+            tmp.raycastTarget = false; // Prevent blocking raycasts on button clicks
 
             yPos -= 50f;
         }

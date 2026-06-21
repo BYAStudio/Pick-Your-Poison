@@ -206,6 +206,7 @@ public class GameEndAndPauseManager : MonoBehaviour
     {
         Time.timeScale = 1f; // Always restore timescale
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+        AudioManager.Instance?.StopMusic();
 
         if (gameManager != null)
         {
@@ -245,11 +246,11 @@ public class GameEndAndPauseManager : MonoBehaviour
                 }
             }
             string formattedNames = string.Join(", ", survivorNames);
-            message = $"{formattedNames}\n\nhayatta kalmayı başardı!";
+            message = $"{formattedNames} hayatta kalmayı başardı!";
         }
         else
         {
-            message = "Herkes öldü!\n\nHayatta kalan kimse olmadı.";
+            message = "Herkes öldü! Hayatta kalan kimse olmadı.";
         }
 
         GameOverSceneController.WinnerMessageTitle = title;
@@ -262,6 +263,7 @@ public class GameEndAndPauseManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+        AudioManager.Instance?.StopMusic();
 
         if (gameManager != null)
         {
@@ -277,6 +279,7 @@ public class GameEndAndPauseManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+        AudioManager.Instance?.StopMusic();
 
         if (gameManager != null)
         {

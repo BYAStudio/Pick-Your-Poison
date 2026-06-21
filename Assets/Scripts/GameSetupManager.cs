@@ -102,6 +102,11 @@ public class GameSetupManager : MonoBehaviour
             return false;
         }
 
+        if (mevcutZehirKoyanOyuncuIndeksi == 0)
+        {
+            AudioManager.Instance?.PlaySFX(AudioManager.SFX.BardakSecme);
+        }
+
         mevcutOyuncununKoyduguZehirSayisi++;
         OnPoisonPlacedByPlayer?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
 

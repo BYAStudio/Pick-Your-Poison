@@ -7,7 +7,24 @@ using UnityEngine;
 /// </summary>
 public class AudioManager : MonoBehaviour
 {
-    public static AudioManager Instance { get; private set; }
+    private static AudioManager instance;
+    public static AudioManager Instance
+    {
+        get
+        {
+            if (instance == null)
+            {
+                instance = FindAnyObjectByType<AudioManager>();
+                if (instance == null)
+                {
+                    GameObject go = new GameObject("AudioManager");
+                    instance = go.AddComponent<AudioManager>();
+                    Debug.Log("[AudioManager] Instance was null. Automatically created AudioManager GameObject.");
+                }
+            }
+            return instance;
+        }
+    }
 
     [Header("Audio Sources")]
     [SerializeField] AudioSource sfxSource;
@@ -40,23 +57,43 @@ public class AudioManager : MonoBehaviour
         TurnStart,
         TurnEnd,
         DirectionReverse,
-        ScanReveal
+        ScanReveal,
+        
+        // New sound effects
+        MainMenuMusic,
+        StartGame,
+        BardakSecme,
+        KartSecim,
+        CardOpening,
+        NegativeCard,
+        NotrCard,
+        PositiveCard,
+        Poison,
+        Antidote,
+        EndGame1,
+        EndGame2,
+        Pause,
+        CardWaiting
     }
+
+    private System.Collections.Generic.Dictionary<SFX, AudioClip> dynamicClips = new System.Collections.Generic.Dictionary<SFX, AudioClip>();
+    private Coroutine endGameCoroutine;
 
     void Awake()
     {
-        if (Instance != null && Instance != this)
+        if (instance != null && instance != this)
         {
             Destroy(gameObject);
             return;
         }
 
-        Instance = this;
+        instance = this;
 
         // Sahne yuklemelerinde yok olmasini engelle (opsiyonel)
         DontDestroyOnLoad(gameObject);
 
         EnsureAudioSources();
+        LoadDynamicClips();
     }
 
     void EnsureAudioSources()
@@ -73,6 +110,39 @@ public class AudioManager : MonoBehaviour
             musicSource = gameObject.AddComponent<AudioSource>();
             musicSource.playOnAwake = false;
             musicSource.loop = true;
+        }
+    }
+
+    void LoadDynamicClips()
+    {
+        LoadAndCheckClip(SFX.MainMenuMusic, "Sounds/mainmenu_sound");
+        LoadAndCheckClip(SFX.StartGame,     "Sounds/startgame_sound");
+        LoadAndCheckClip(SFX.BardakSecme,   "Sounds/bardak_secme");
+        LoadAndCheckClip(SFX.KartSecim,     "Sounds/kart_secim");
+        LoadAndCheckClip(SFX.CardOpening,   "Sounds/card_opening");
+        LoadAndCheckClip(SFX.NegativeCard,  "Sounds/negative_card");
+        LoadAndCheckClip(SFX.NotrCard,      "Sounds/notr_card");
+        LoadAndCheckClip(SFX.PositiveCard,  "Sounds/positive_card");
+        LoadAndCheckClip(SFX.Poison,        "Sounds/poison");
+        LoadAndCheckClip(SFX.Antidote,      "Sounds/antidote");
+        LoadAndCheckClip(SFX.EndGame1,      "Sounds/endgame_sound1");
+        LoadAndCheckClip(SFX.EndGame2,      "Sounds/endgame_sound2");
+        LoadAndCheckClip(SFX.Pause,         "Sounds/pause");
+        LoadAndCheckClip(SFX.ButtonClick,   "Sounds/click");
+        LoadAndCheckClip(SFX.CardWaiting,   "Sounds/card_waiting");
+    }
+
+    void LoadAndCheckClip(SFX type, string path)
+    {
+        AudioClip clip = Resources.Load<AudioClip>(path);
+        if (clip == null)
+        {
+            Debug.LogError($"[AudioManager] Failed to load clip: {path} from Resources! Make sure it is inside Assets/Resources/Sounds/");
+        }
+        else
+        {
+            dynamicClips[type] = clip;
+            Debug.Log($"[AudioManager] Successfully loaded: {path}");
         }
     }
 
@@ -109,11 +179,57 @@ public class AudioManager : MonoBehaviour
 
         musicSource.clip = clip;
         musicSource.volume = Mathf.Clamp01(volume);
+        musicSource.loop = true;
         musicSource.Play();
+    }
+
+    public void PlayMainMenuMusic()
+    {
+        AudioClip clip = GetClip(SFX.MainMenuMusic);
+        if (clip != null)
+        {
+            PlayMusic(clip, 0.8f);
+        }
+    }
+
+    public void PlayEndGameSequence()
+    {
+        StopMusic();
+        endGameCoroutine = StartCoroutine(EndGameSequenceCoroutine());
+    }
+
+    private System.Collections.IEnumerator EndGameSequenceCoroutine()
+    {
+        if (musicSource == null) yield break;
+
+        AudioClip clip1 = GetClip(SFX.EndGame1);
+        AudioClip clip2 = GetClip(SFX.EndGame2);
+
+        if (clip1 != null)
+        {
+            musicSource.loop = false;
+            musicSource.clip = clip1;
+            musicSource.volume = 0.5f;
+            musicSource.Play();
+            yield return new WaitForSeconds(clip1.length);
+        }
+
+        if (clip2 != null)
+        {
+            musicSource.loop = false;
+            musicSource.clip = clip2;
+            musicSource.volume = 0.5f;
+            musicSource.Play();
+        }
     }
 
     public void StopMusic()
     {
+        if (endGameCoroutine != null)
+        {
+            StopCoroutine(endGameCoroutine);
+            endGameCoroutine = null;
+        }
         musicSource?.Stop();
     }
 
@@ -139,8 +255,13 @@ public class AudioManager : MonoBehaviour
 
     #region Clip Resolution
 
-    AudioClip GetClip(SFX type)
+    public AudioClip GetClip(SFX type)
     {
+        if (dynamicClips.TryGetValue(type, out var dynamicClip) && dynamicClip != null)
+        {
+            return dynamicClip;
+        }
+
         switch (type)
         {
             case SFX.CardDraw:        return cardDraw;
