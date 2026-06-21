@@ -79,6 +79,16 @@ public class GameSetupManager : MonoBehaviour
         // Update UI panels to show correct names from setup start
         FindAnyObjectByType<PlayerPoisonUIHandler>()?.UpdateAllPanels();
 
+        // Zehir yerleştirme bilgilendirme banner'ını göster
+        var canvas = GameObject.Find("Canvas");
+        if (canvas != null)
+        {
+            var bannerGo = new GameObject("SetupBanner");
+            bannerGo.transform.SetParent(canvas.transform, false);
+            var banner = bannerGo.AddComponent<StartingBannerController>();
+            banner.Initialize("Zehir koyacağın bardakları seç!", 3.0f, 0.72f, 0.92f);
+        }
+
         // 2. Ilk oyuncu zehir koymaya baslar
         OnNextPlayerSetupTurn?.Invoke(mevcutZehirKoyanOyuncuIndeksi);
     }
