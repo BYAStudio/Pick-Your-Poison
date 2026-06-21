@@ -403,13 +403,22 @@ public class CupClickTrigger : MonoBehaviour
 
     public void ResetVisualState()
     {
-        gameObject.SetActive(true);
         isHighlighted = false;
         transform.localScale = originalScale;
         transform.localRotation = Quaternion.identity;
         if (spriteRenderer != null)
         {
             spriteRenderer.color = originalColor;
+        }
+
+        MasaYonetici masaYonetici = FindAnyObjectByType<MasaYonetici>();
+        if (masaYonetici != null && masaYonetici.IsConsumed(cupIndex))
+        {
+            gameObject.SetActive(false);
+        }
+        else
+        {
+            gameObject.SetActive(true);
         }
     }
 }

@@ -9,11 +9,19 @@ public class MainMenuController : MonoBehaviour
     [Tooltip("Karakter seçme sahnesinin adı")]
     [SerializeField] private string characterSelectionSceneName = "Karakter_Secme";
 
+    [Tooltip("Öğretici paneli")]
+    [SerializeField] private GameObject tutorialPanel;
+
     void Start()
     {
         AudioManager.Instance?.PlayMainMenuMusic();
 
-        // Dynamically create an Exit Button based on the Play Button
+        if (tutorialPanel != null)
+        {
+            tutorialPanel.SetActive(false);
+        }
+
+        // Dynamically create Tutorial and Exit Buttons based on the Play Button
         Transform playBtnTr = transform.Find("PlayButton");
         if (playBtnTr == null)
         {
@@ -22,38 +30,67 @@ public class MainMenuController : MonoBehaviour
 
         if (playBtnTr != null)
         {
+            var playRt = playBtnTr.GetComponent<RectTransform>();
+
+            // Create Tutorial Button (ÖĞRETİCİ)
+            GameObject tutorialBtnGo = Instantiate(playBtnTr.gameObject, playBtnTr.parent);
+            tutorialBtnGo.name = "TutorialButton";
+            var tutorialRt = tutorialBtnGo.GetComponent<RectTransform>();
+            if (playRt != null && tutorialRt != null)
+            {
+                tutorialRt.anchoredPosition = playRt.anchoredPosition + new Vector2(0f, -100f);
+            }
+            var tutText = tutorialBtnGo.GetComponentInChildren<TMPro.TMP_Text>();
+            if (tutText != null) tutText.text = "ÖĞRETİCİ";
+            var tutBtn = tutorialBtnGo.GetComponent<UnityEngine.UI.Button>();
+            if (tutBtn != null)
+            {
+                tutBtn.onClick = new UnityEngine.UI.Button.ButtonClickedEvent();
+                tutBtn.onClick.AddListener(() => ShowTutorial(true));
+            }
+
+            // Create Exit Button (ÇIKIŞ)
             GameObject exitBtnGo = Instantiate(playBtnTr.gameObject, playBtnTr.parent);
             exitBtnGo.name = "ExitButton";
-            
-            var playRt = playBtnTr.GetComponent<RectTransform>();
             var exitRt = exitBtnGo.GetComponent<RectTransform>();
             if (playRt != null && exitRt != null)
             {
-                // Position it 100 units below the Play Button
-                exitRt.anchoredPosition = playRt.anchoredPosition + new Vector2(0f, -100f);
+                exitRt.anchoredPosition = playRt.anchoredPosition + new Vector2(0f, -200f);
             }
-
-            // Update text label to "ÇIKIŞ"
-            var textComp = exitBtnGo.GetComponentInChildren<TMPro.TMP_Text>();
-            if (textComp != null)
+            var exitText = exitBtnGo.GetComponentInChildren<TMPro.TMP_Text>();
+            if (exitText != null) exitText.text = "ÇIKIŞ";
+            var exitBtn = exitBtnGo.GetComponent<UnityEngine.UI.Button>();
+            if (exitBtn != null)
             {
-                textComp.text = "ÇIKIŞ";
-            }
-            else
-            {
-                var legacyText = exitBtnGo.GetComponentInChildren<UnityEngine.UI.Text>();
-                if (legacyText != null) legacyText.text = "ÇIKIŞ";
-            }
-
-            // Hook up onClick listener
-            var btn = exitBtnGo.GetComponent<UnityEngine.UI.Button>();
-            if (btn != null)
-            {
-                btn.onClick.RemoveAllListeners();
-                btn.onClick.AddListener(QuitGame);
+                exitBtn.onClick = new UnityEngine.UI.Button.ButtonClickedEvent();
+                exitBtn.onClick.AddListener(QuitGame);
             }
         }
     }
+
+    /// <summary>
+    /// Öğretici panelini gösterir veya gizler.
+    /// </summary>
+    public void ShowTutorial(bool show)
+    {
+        AudioManager.Instance?.PlaySFX(AudioManager.SFX.ButtonClick);
+
+        if (tutorialPanel != null)
+        {
+            tutorialPanel.SetActive(show);
+        }
+
+        // Hide/show other menu buttons
+        Transform playBtnTr = transform.Find("PlayButton") ?? transform.Find("Canvas/PlayButton");
+        if (playBtnTr != null) playBtnTr.gameObject.SetActive(!show);
+
+        Transform exitBtnTr = transform.Find("ExitButton") ?? transform.Find("Canvas/ExitButton");
+        if (exitBtnTr != null) exitBtnTr.gameObject.SetActive(!show);
+
+        Transform tutorialBtnTr = transform.Find("TutorialButton") ?? transform.Find("Canvas/TutorialButton");
+        if (tutorialBtnTr != null) tutorialBtnTr.gameObject.SetActive(!show);
+    }
+
 
     /// <summary>
     /// Play butonuna tıklandığında karakter seçme sahnesine geçiş yapar.
